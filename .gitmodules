@@ -1,0 +1,3 @@
+[submodule "mod-plugin-builder"]
+	path = mod-plugin-builder
+	url = https://github.com/moddevices/mod-plugin-builder.git
