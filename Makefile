@@ -5,13 +5,12 @@
 all: images
 
 # TODO make images target use a single job
-images: modduo-image modduox-image moddwarf-image
+images: modduo-image modduox-image moddwarf-image webserver-image
 
-modduo-image: .stamp-modduo
+%-image: .stamp-%
 
-modduox-image: .stamp-modduox
+.stamp-mod%:
+	docker build mod-plugin-builder/docker --build-arg platform=mod$*-new --build-arg target=minimal --tag mpb-minimal-mod$*-new && touch $@
 
-moddwarf-image: .stamp-moddwarf
-
-.stamp-%:
-	docker build mod-plugin-builder/docker --build-arg platform=$*-new --build-arg target=minimal --tag mpb-minimal-$*-new && touch $@
+.stamp-webserver:
+	docker build webserver --tag mod-cloud-builder && touch $@

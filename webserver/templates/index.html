@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<div id="pedalboards-library">
+  <div class="box clearfix">
+    <header>
+      <h1 class="bottom top">PLUGIN LABS</h1>
+    </header>
+    <div class="pedalboards clearfix">
+      <div class="js-pedalboards">
+        {% for builder in builders %}
+        <a class="pedalboard" href="{{ builder.href }}">
+          <div class="info">
+            <span class="title">{{ builder.name }}</span>
+          </div>
+          <div class="img loaded" style="background-image: url({{ builder.image_url }});"></div>
+        </a>
+        {%endfor%}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

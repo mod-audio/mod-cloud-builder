@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block content %}
+<div id="cloud-plugins-library">
+  <div class="box clearfix">
+    <header>
+      <h1 class="bottom top">FAUST PLUGIN BUIDER</h1>
+    </header>
+        <div class="pedalboards clearfix">
+            <div id="cloudplugin-results-wrapper">
+                <div class="filter clearfix">
+                    <h2>Plugin details</h2>
+                    <div class="form-group">
+                        <input class="form-control" placeholder="Name" type="text"/>
+                        <input class="form-control" placeholder="Brand" type="text"/>
+                    </div>
+                    <div class="form-group">
+                    </div>
+                </div>
+
+                <div class="cloud-plugins clearfix js-cloud-plugins">
+                <div id="cloudplugin-results-wrapper">
+                    <h2>Drag &amp; drop a faust *.dsp file here to begin</h2>
+                    <div id="cloud-plugin-content-All" class="plugins-wrapper"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta charset="utf-8">
+    <title></title>
+    <link rel="apple-touch-icon" sizes="57x57" href="{{ url_for('mod_ui', path='img/favicon/apple-icon-57x57.png') }}">
+    <link rel="apple-touch-icon" sizes="60x60" href="{{ url_for('mod_ui', path='img/favicon/apple-icon-60x60.png') }}">
+    <link rel="apple-touch-icon" sizes="72x72" href="{{ url_for('mod_ui', path='img/favicon/apple-icon-72x72.png') }}">
+    <link rel="apple-touch-icon" sizes="76x76" href="{{ url_for('mod_ui', path='img/favicon/apple-icon-76x76.png') }}">
+    <link rel="apple-touch-icon" sizes="114x114" href="{{ url_for('mod_ui', path='img/favicon/apple-icon-114x114.png') }}">
+    <link rel="apple-touch-icon" sizes="120x120" href="{{ url_for('mod_ui', path='img/favicon/apple-icon-120x120.png') }}">
+    <link rel="apple-touch-icon" sizes="144x144" href="{{ url_for('mod_ui', path='img/favicon/apple-icon-144x144.png') }}">
+    <link rel="apple-touch-icon" sizes="152x152" href="{{ url_for('mod_ui', path='img/favicon/apple-icon-152x152.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('mod_ui', path='img/favicon/apple-icon-180x180.png') }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('mod_ui', path='img/favicon/android-icon-192x192.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('mod_ui', path='img/favicon/favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="96x96" href="{{ url_for('mod_ui', path='img/favicon/favicon-96x96.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('mod_ui', path='img/favicon/favicon-16x16.png') }}">
+    <link rel="manifest" href="{{ url_for('mod_ui', path='img/favicon/manifest.json') }}">
+    <meta name="msapplication-TileColor" content="#111111">
+    <meta name="msapplication-TileImage" content="{{ url_for('mod_ui', path='img/favicon/ms-icon-144x144.png') }}">
+    <meta name="theme-color" content="#111111">
+
+    <link rel="stylesheet" type="text/css" href="{{ url_for('mod_ui', path='css/fontello/css/fontello.css') }}"/>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('mod_ui', path='css/main.css') }}"/>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('mod_ui', path='css/dashboard.css') }}"/>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('mod_ui', path='css/fonts.css') }}"/>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('mod_ui', path='img/icons/icons.css') }}"/>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('mod_ui', path='css/pedals.css') }}"/>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('mod_ui', path='resources/pedals/default.css') }}"/>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('mod_ui', path='js/lib/slick/slick.css') }}"/>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('mod_ui', path='js/lib/slick/slick-theme.css') }}"/>
+
+    <script type="text/javascript" src="{{ url_for('mod_ui', path='js/lib/jquery-1.9.1.min.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for('mod_ui', path='js/lib/jquery-ui-1.10.1.custom.min.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for('mod_ui', path='js/lib/jquery.ui.touch-punch.min.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for('mod_ui', path='js/lib/jquery.ba-resize.min.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for('mod_ui', path='js/lib/mustache.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for('mod_ui', path='js/lib/sprintf-0.6.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for('mod_ui', path='js/lib/jquery.mousewheel.min.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for('mod_ui', path='js/lib/slick/slick.min.js') }}"></script>
+
+    <style type="text/css" media="screen">
+      #pedalboards-library .js-pedalboards {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+      }
+      #pedalboards-library .pedalboards .pedalboard {
+        margin: 1%;
+        float: none;
+        min-width: 300px;
+      }
+      #pedalboards-library .pedalboards .pedalboard .title {
+        text-align: center;
+      }
+      #cloud-plugins-library {
+        display: block !important;
+      }
+      #cloud-plugins-library,
+      #cloud-plugins-library .filter,
+      #cloud-plugins-library .cloud-plugins,
+      #pedalboards-library .pedalboards {
+        bottom: 5px;
+      }
+      #cloud-plugins-library .licensed::before {
+        content: "COMMERCIAL" !important;
+      }
+      .alert {
+        position: absolute;
+        top: 25px;
+        right: 25px;
+        width: 300px;
+        z-index: 2;
+      }
+    </style>
+  </head>
+  <body class="mod-dark">
+    <div id="wrapper">
+    {% block content %}
+    {% endblock %}
+    </div>
+  </body>
+</html>

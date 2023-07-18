@@ -1,3 +1,6 @@
 [submodule "mod-plugin-builder"]
 	path = mod-plugin-builder
 	url = https://github.com/moddevices/mod-plugin-builder.git
+[submodule "mod-ui"]
+	path = mod-ui
+	url = https://github.com/moddevices/mod-ui.git

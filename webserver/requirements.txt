@@ -1,0 +1,2 @@
+# same versions as used in debian 12/bookworm
+Flask==2.2.2
