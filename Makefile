@@ -10,7 +10,7 @@ images: modduo-image modduox-image moddwarf-image webserver-image
 %-image: .stamp-%
 	touch $^
 
-.stamp-mod%:
+.stamp-mod%: mod-plugin-builder/docker/Dockerfile
 	docker build mod-plugin-builder/docker --build-arg platform=mod$*-new --build-arg target=minimal --tag mpb-minimal-mod$*-new
 
 .stamp-webserver:
