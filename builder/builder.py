@@ -3,62 +3,65 @@
 # SPDX-FileCopyrightText: 2023 MOD Audio UG
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+import os
+
 from asyncio.subprocess import create_subprocess_shell, PIPE, STDOUT
-from asyncio import run
 from tempfile import TemporaryDirectory
 from tornado.ioloop import IOLoop
 from tornado.web import Application
 from tornado.websocket import WebSocketHandler
 
 class EchoWebSocket(WebSocketHandler):
+    async def procrun(self):
+        self.proc = await create_subprocess_shell(f'./build moddwarf-new {self.projname}', stdout=PIPE, stderr=STDOUT)
+        while self.proc is not None:
+            stdout = await self.proc.stdout.readline()
+            if stdout == b'':
+                self.proc = None
+                self.close()
+                break
+            self.write_message(stdout)
+
     def open(self):
-        print("WebSocket opened")
+        self.proc = self.projname = self.projdir = None
 
     def on_message(self, message):
-        print(message)
-        self.write_message(u"You said: " + message)
+        if self.proc is not None:
+            self.write_message(u"Build already active, cannot trigger a 2nd one on the same socket")
+            return
+
+        message = message.strip()
+        versionline = message.split('\n',1)[0].split('#',1)[0]
+        versionpkg = versionline.split('_VERSION',1)[0]
+        if not versionpkg or ' ' in versionpkg:
+            self.write_message(u"Invalid package")
+            return
+
+        self.projdir = TemporaryDirectory(dir='./plugins/package')
+        self.projname = os.path.basename(self.projdir.name)
+
+        with open(os.path.join(self.projdir.name, self.projname + '.mk'), 'w') as fh:
+            fh.write(message.replace(versionpkg+'_',self.projname.upper()+'_'))
+
+        self.write_message(u"Starting build for "+versionpkg.lower()+'...' )
+        IOLoop.instance().add_callback(self.procrun)
 
     def on_close(self):
-        print("WebSocket closed")
+        if self.proc is None:
+            return
+        proc = self.proc
+        projdir = self.projdir
+        self.proc = self.projname = self.projdir = None
+        proc.kill()
+        projdir.cleanup()
 
     def check_origin(self, origin):
         return True
 
 if __name__ == "__main__":
-    print ("Starting...")
+    print ("Starting using port 8000...")
     app = Application([
         (r'/ww', EchoWebSocket)
     ])
     app.listen(8000)
     IOLoop.instance().start()
-
-#projdir = TemporaryDirectory()
-
-#with open(projdir, "aether.mk", "w") as fh:
-    #fh.write("""
-#AETHER_VERSION = 2ccae056a612d2075650f2913a93cc4aa0df95ad
-#AETHER_SITE = https://github.com/Dougal-s/Aether.git
-#AETHER_SITE_METHOD = git
-#AETHER_CONF_OPTS = -DBUILD_GUI="Off" -DFORCE_DISABLE_DENORMALS="Off"
-#AETHER_BUNDLES = aether.lv2
-
-## needed for submodules support
-#AETHER_PRE_DOWNLOAD_HOOKS += MOD_PLUGIN_BUILDER_DOWNLOAD_WITH_SUBMODULES
-
-#define AETHER_INSTALL_TARGET_CMDS
-	#cp -rL $(@D)/aether.lv2 $(TARGET_DIR)/usr/lib/lv2/
-#endef
-
-#$(eval $(cmake-package))
-#""")
-
-#async def main():
-    #c = f'docker run -v {projdir}:/opt/mount  --rm mpb-minimal-modduo-new:latest /root/build-and-copy-bundles.sh'
-    #p = await create_subprocess_shell(c, stdout=PIPE, stderr=STDOUT)
-    #while True:
-        #stdout = await p.stdout.readline()
-        #if stdout == b'':
-            #break
-        #print('----------------------', stdout.decode('utf-8'), end='')
-
-#run(main())

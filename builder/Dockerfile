@@ -10,7 +10,11 @@ RUN apt-get update && apt-get upgrade -qqy && apt-get clean
 # install packages for webserver
 RUN apt-get install python3-tornado
 
+# setup for this instance
+ENV PYTHONUNBUFFERED 1
+
 # copy builder code
 COPY builder.py /root
 
-CMD ["bash"]
+# entry point
+ENTRYPOINT /root/builder.py
