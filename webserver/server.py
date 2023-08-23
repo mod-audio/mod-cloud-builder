@@ -8,6 +8,7 @@ import os
 import sys
 
 from flask import Flask, request, render_template, send_from_directory
+from flask_socketio import SocketIO, emit, send
 
 # configuration
 MOD_UI_HTML_DIR = os.getenv('MOD_UI_HTML_DIR', os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'mod-ui', 'html')))
@@ -35,10 +36,27 @@ builders = [
     },
 ]
 
+categories = [
+    '(none)',
+    'Delay',
+    'Distortion',
+    'Dynamics',
+    'Filter',
+    'Generator',
+    'MIDI',
+    'Modulator',
+    'Reverb',
+    'Simulator',
+    'Spatial',
+    'Spectral',
+    'Utility',
+]
+
 # setup
 app = Flask(__name__)
 # Disable caching?
 app.config['TEMPLATES_AUTO_RELOAD'] = True
+socketio = SocketIO(app)
 
 @app.route('/', methods=['GET'])
 def index():
@@ -46,7 +64,7 @@ def index():
 
 @app.route('/faust', methods=['GET'])
 def faust():
-    return render_template('faust.html')
+    return render_template('faust.html', categories=categories, uri='urn:faust:example')
 
 @app.route('/plugins', methods=['GET'])
 def plugins():
@@ -307,4 +325,4 @@ def pedalboards_stats():
     return {}
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0')
+    socketio.run(app, host='0.0.0.0')
