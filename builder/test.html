@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <title></title>
     <script>
-      var ws = new WebSocket('ws://localhost:8003/ww');
+      var ws = new WebSocket('ws://'+window.location.hostname+':8003/ww');
       ws.onopen = function() {
         var pkg = `
 AUDIO_BRIDGE_VERSION = caca521802f892d7b6c3e6cb2989a22c81562736

@@ -16,6 +16,8 @@ class EchoWebSocket(WebSocketHandler):
         self.proc = await create_subprocess_shell(f'./build moddwarf-new {self.projname}', stdout=PIPE, stderr=STDOUT)
         while self.proc is not None:
             stdout = await self.proc.stdout.readline()
+            if self.proc is None:
+                break
             if stdout == b'':
                 self.proc = None
                 self.close()
