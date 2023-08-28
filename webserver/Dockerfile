@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && apt-get upgrade -qqy && apt-get clean
 
 # install required packages
-RUN apt-get install -qqy pylint python3-flask python3-flask-socketio && \
+RUN apt-get install -qqy pylint python3-flask python3-flask-socketio python3-flask-sockets && \
     apt-get clean
 
 # user configuration

@@ -12,7 +12,20 @@ from tornado.web import Application
 from tornado.websocket import WebSocketHandler
 
 class EchoWebSocket(WebSocketHandler):
-    async def procrun(self):
+    async def plugin_package(self):
+        # FIXME randomize bundle name?
+        self.proc = await create_subprocess_shell(f'tar -C ~/mod-workdir/moddwarf-new/plugins -chz midi-display.lv2 -O', stdout=PIPE)
+        while self.proc is not None:
+            stdout = await self.proc.stdout.read(8192)
+            if self.proc is None:
+                break
+            if stdout == b'':
+                self.proc = None
+                self.close()
+                break
+            self.write_message(stdout, True)
+
+    async def plugin_build(self):
         self.proc = await create_subprocess_shell(f'./build moddwarf-new {self.projname}', stdout=PIPE, stderr=STDOUT)
         while self.proc is not None:
             stdout = await self.proc.stdout.readline()
@@ -20,7 +33,9 @@ class EchoWebSocket(WebSocketHandler):
                 break
             if stdout == b'':
                 self.proc = None
-                self.close()
+                self.write_message(u"Build completed successfully, fetching plugin binaries...")
+                self.write_message(u'--- BINARY ---')
+                IOLoop.instance().add_callback(self.plugin_package)
                 break
             self.write_message(stdout)
 
@@ -30,6 +45,7 @@ class EchoWebSocket(WebSocketHandler):
     def on_message(self, message):
         if self.proc is not None:
             self.write_message(u"Build already active, cannot trigger a 2nd one on the same socket")
+            self.close()
             return
 
         message = message.strip()
@@ -37,6 +53,7 @@ class EchoWebSocket(WebSocketHandler):
         versionpkg = versionline.split('_VERSION',1)[0]
         if not versionpkg or ' ' in versionpkg:
             self.write_message(u"Invalid package")
+            self.close()
             return
 
         self.projdir = TemporaryDirectory(dir='./plugins/package')
@@ -45,8 +62,8 @@ class EchoWebSocket(WebSocketHandler):
         with open(os.path.join(self.projdir.name, self.projname + '.mk'), 'w') as fh:
             fh.write(message.replace(versionpkg+'_',self.projname.upper()+'_'))
 
-        self.write_message(u"Starting build for "+versionpkg.lower()+'...' )
-        IOLoop.instance().add_callback(self.procrun)
+        self.write_message(u"Starting build for "+versionpkg.lower()+'...')
+        IOLoop.instance().add_callback(self.plugin_build)
 
     def on_close(self):
         if self.proc is None:

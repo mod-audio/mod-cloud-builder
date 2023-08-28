@@ -14,22 +14,49 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
 <script type="text/javascript" charset="utf-8">
 $('document').ready(function() {
-    var ws = new WebSocket('ws://192.168.51.1/rpbsocket');
-    ws.onopen = function() {
-        ws.onmessage = function (evt) {
-            console.log(evt)
-            ws.close();
-        }
+    // var ws = new WebSocket('ws://192.168.51.1/rpbsocket');
+    // ws.onopen = function() {
+    //     ws.onmessage = function (evt) {
+    //         console.log(evt)
+    //         ws.close();
+    //     }
+    // 
+    //     ws.send('hello')
+    // }
+    // ws.onerror = function (err) {
+    //     console.log(err)
+    // }
 
-        ws.send('hello')
-    }
-    ws.onerror = function (err) {
-        console.log(err)
-    }
-
-    var socket = io('ws://127.0.0.1:5001/');
+    var socket = io('ws://' + window.location.host + '/');
     socket.on('connect', function() {
-        socket.emit('my event', {data: 'I\'m connected!'});
+        socket.emit('my event', {
+            name: 'My Cool Plugin',
+            brand: 'My Cool Brand',
+            category: 'Delay',
+        });
+    });
+    socket.on('status', function(status) {
+        console.log('got new status:', status)
+    });
+    socket.on('buildlog', function(msg) {
+        console.log('got buildlog:', msg)
+    });
+    socket.on('buildfile', function(data) {
+        // window.plugindata = data;
+        var formdata = new FormData();
+        formdata.append('package', new File([data], '-'));
+        fetch('http://192.168.51.1/sdk/install', {
+            method: 'POST',
+            // mode: 'cors',
+            body: formdata
+        }).then((response) => {
+            console.log('build push okay!', response)
+            return response.json();
+        }).then((response) => {
+            console.log(response);
+        }).catch((error) => {
+            console.log('build push error', error)
+        });
     });
     socket.on('response', function(msg) {
         console.log(msg)

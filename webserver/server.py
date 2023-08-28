@@ -7,8 +7,11 @@
 import os
 import sys
 
-from flask import Flask, request, render_template, send_from_directory
+from base64 import encodebytes
+from flask import Flask, copy_current_request_context, request, render_template, send_from_directory
 from flask_socketio import SocketIO, emit, send
+from gevent import spawn
+from websocket import create_connection
 
 # configuration
 MOD_UI_HTML_DIR = os.getenv('MOD_UI_HTML_DIR', os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'mod-ui', 'html')))
@@ -57,6 +60,75 @@ app = Flask(__name__)
 # Disable caching?
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 socketio = SocketIO(app)
+
+@socketio.on('connect')
+def test_connect(auth):
+    print('Client Connected', auth)
+    emit('response', {'data': 'Connected'})
+
+@socketio.on('disconnect')
+def test_disconnect():
+    print('Client disconnected')
+
+@socketio.on('my event')
+def test_message(msg):
+    print('Client message', msg)
+    data = """
+VALLSV_MIDI_DISPLAY_LABS_VERSION = ccf031e74df96565aabb4af21cb4b7cf7bd07f0f
+VALLSV_MIDI_DISPLAY_LABS_SITE = $(call github,vallsv,midi-display.lv2,$(VALLSV_MIDI_DISPLAY_LABS_VERSION))
+VALLSV_MIDI_DISPLAY_LABS_DEPENDENCIES =
+VALLSV_MIDI_DISPLAY_LABS_BUNDLES = midi-display.lv2
+
+VALLSV_MIDI_DISPLAY_LABS_TARGET_MAKE = $(TARGET_MAKE_ENV) $(TARGET_CONFIGURE_OPTS) $(MAKE) PREFIX=/usr -C $(@D)
+
+define VALLSV_MIDI_DISPLAY_LABS_BUILD_CMDS
+	$(VALLSV_MIDI_DISPLAY_LABS_TARGET_MAKE)
+endef
+
+define VALLSV_MIDI_DISPLAY_LABS_INSTALL_TARGET_CMDS
+	$(VALLSV_MIDI_DISPLAY_LABS_TARGET_MAKE) install DESTDIR=$(TARGET_DIR)
+endef
+
+$(eval $(generic-package))
+"""
+
+    @copy_current_request_context
+    def buildlog(ws):
+        if not ws.connected:
+            ws.close()
+            emit('status', 'closed')
+            return
+
+        recv = ws.recv()
+        if recv == '':
+            ws.close()
+            emit('status', 'finished')
+            return
+
+        if recv == '--- BINARY ---':
+            data = b''
+            while ws.connected:
+                recv = ws.recv()
+                if recv == '':
+                    break
+                data += recv
+            emit('buildfile', encodebytes(data).decode('utf-8'))
+            ws.close()
+            return
+
+        print(recv, end='')
+        emit('buildlog', recv)
+        spawn(buildlog, ws)
+
+    ws = create_connection('ws://127.0.0.1:8003/ww')
+    ws.send(data)
+
+    if not ws.connected:
+        emit('status', 'error')
+        return
+
+    emit('status', 'started')
+    spawn(buildlog, ws)
 
 @app.route('/', methods=['GET'])
 def index():
@@ -325,4 +397,4 @@ def pedalboards_stats():
     return {}
 
 if __name__ == "__main__":
-    socketio.run(app, host='0.0.0.0')
+    socketio.run(app, host='0.0.0.0', port=8000)

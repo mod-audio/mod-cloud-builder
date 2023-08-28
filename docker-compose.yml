@@ -4,7 +4,7 @@ services:
     #     image: mcb-builder-modduo
     #     ports:
     #       - "8001:8000"
-    # 
+
     # modduox-builder:
     #     image: mcb-builder-modduox
     #     ports:
@@ -14,3 +14,8 @@ services:
         image: mcb-builder-moddwarf
         ports:
           - "8003:8000"
+
+    # webserver:
+    #     image: mcb-webserver
+    #     ports:
+    #       - "8010:8000"

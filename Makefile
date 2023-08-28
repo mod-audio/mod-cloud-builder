@@ -24,7 +24,7 @@ images: .stamp-modduo-builder .stamp-modduox-builder .stamp-moddwarf-builder
 	$(shell which docker) build builder --build-arg platform=$* --tag mcb-builder-$* && touch $@
 
 # .stamp-webserver-image:
-# 	$(shell which docker) build webserver --tag mod-cloud-builder && touch $@
+# 	$(shell which docker) build webserver --tag mcb-webserver && touch $@
 
 run: .stamp-moddwarf-builder
 	$(shell which docker-compose) down -t 1
