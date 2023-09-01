@@ -6,11 +6,13 @@
 # imports
 import os
 import sys
+import json
 
 from base64 import encodebytes
 from flask import Flask, copy_current_request_context, request, render_template, send_from_directory
 from flask_socketio import SocketIO, emit, send
 from gevent import spawn
+from urllib.request import Request, urlopen
 from websocket import create_connection
 
 # configuration
@@ -70,27 +72,72 @@ def test_connect(auth):
 def test_disconnect():
     print('Client disconnected')
 
+def read_example_file(filename):
+    with open(os.path.join(os.path.dirname(__file__), filename), 'r') as fh:
+        return fh.read()
+
 @socketio.on('my event')
 def test_message(msg):
     print('Client message', msg)
-    data = """
-VALLSV_MIDI_DISPLAY_LABS_VERSION = ccf031e74df96565aabb4af21cb4b7cf7bd07f0f
-VALLSV_MIDI_DISPLAY_LABS_SITE = $(call github,vallsv,midi-display.lv2,$(VALLSV_MIDI_DISPLAY_LABS_VERSION))
-VALLSV_MIDI_DISPLAY_LABS_DEPENDENCIES =
-VALLSV_MIDI_DISPLAY_LABS_BUNDLES = midi-display.lv2
 
-VALLSV_MIDI_DISPLAY_LABS_TARGET_MAKE = $(TARGET_MAKE_ENV) $(TARGET_CONFIGURE_OPTS) $(MAKE) PREFIX=/usr -C $(@D)
+    targethost = '127.0.0.1:8003'
 
-define VALLSV_MIDI_DISPLAY_LABS_BUILD_CMDS
-	$(VALLSV_MIDI_DISPLAY_LABS_TARGET_MAKE)
+    name = "max-gen-demo"
+    # | sed -e "s/[^A-Za-z0-9._-]/_/g"
+
+    reqdata = json.dumps({
+      'name': '',
+      'files': [
+          {
+              'filename': "gen_exported.cpp",
+              'content': read_example_file("examples/gen_exported.cpp"),
+          },
+          {
+              'filename': "gen_exported.h",
+              'content': read_example_file("examples/gen_exported.h"),
+          }
+      ],
+      'package': f"""
+MAX_GEN_SKELETON_VERSION = 7b93c46d1b689d93b405256d86de31fb380b4966
+MAX_GEN_SKELETON_SITE = https://github.com/moddevices/max-gen-skeleton.git
+MAX_GEN_SKELETON_SITE_METHOD = git
+MAX_GEN_SKELETON_BUNDLES = {name}.lv2
+
+MAX_GEN_SKELETON_TARGET_MAKE = $(TARGET_MAKE_ENV) $(TARGET_CONFIGURE_OPTS) $(MAKE) PREFIX=/usr NOOPT=true -C $(@D)
+
+MAX_GEN_SKELETON_PRE_DOWNLOAD_HOOKS += MOD_PLUGIN_BUILDER_DOWNLOAD_WITH_SUBMODULES
+
+define MAX_GEN_SKELETON_CONFIGURE_CMDS
+	cp $($(PKG)_PKGDIR)/gen_exported.cpp $(@D)/plugin/
+	cp $($(PKG)_PKGDIR)/gen_exported.h $(@D)/plugin/
+	echo {name} | $(@D)/setup.sh
 endef
 
-define VALLSV_MIDI_DISPLAY_LABS_INSTALL_TARGET_CMDS
-	$(VALLSV_MIDI_DISPLAY_LABS_TARGET_MAKE) install DESTDIR=$(TARGET_DIR)
+define MAX_GEN_SKELETON_BUILD_CMDS
+	$(MAX_GEN_SKELETON_TARGET_MAKE)
+endef
+
+define MAX_GEN_SKELETON_INSTALL_TARGET_CMDS
+	install -d $(BUILDER_TARGET_DIR)/usr/lib/lv2
+	cp -r $(@D)/bin/*.lv2 $(BUILDER_TARGET_DIR)/usr/lib/lv2/
 endef
 
 $(eval $(generic-package))
 """
+    }).encode('utf-8')
+
+    reqheaders = {
+      'Content-Type': 'application/json; charset=UTF-8',
+    }
+
+    req = urlopen(Request(f'http://{targethost}/', data=reqdata, headers=reqheaders))
+    resp = json.loads(req.read().decode('utf-8'))
+    print(resp)
+
+    if not resp['ok']:
+        emit('buildlog', resp['error'])
+        emit('status', 'error')
+        return
 
     @copy_current_request_context
     def buildlog(ws):
@@ -105,23 +152,23 @@ $(eval $(generic-package))
             emit('status', 'finished')
             return
 
-        if recv == '--- BINARY ---':
-            data = b''
-            while ws.connected:
-                recv = ws.recv()
-                if recv == '':
-                    break
-                data += recv
-            emit('buildfile', encodebytes(data).decode('utf-8'))
-            ws.close()
-            return
+        # if recv == '--- BINARY ---':
+        #     data = b''
+        #     while ws.connected:
+        #         recv = ws.recv()
+        #         if recv == '':
+        #             break
+        #         data += recv
+        #     emit('buildfile', encodebytes(data).decode('utf-8'))
+        #     ws.close()
+        #     return
 
         print(recv, end='')
         emit('buildlog', recv)
         spawn(buildlog, ws)
 
-    ws = create_connection('ws://127.0.0.1:8003/ww')
-    ws.send(data)
+    ws = create_connection(f'ws://{targethost}/build')
+    ws.send(resp['id'])
 
     if not ws.connected:
         emit('status', 'error')
