@@ -118,8 +118,7 @@ define MAX_GEN_SKELETON_BUILD_CMDS
 endef
 
 define MAX_GEN_SKELETON_INSTALL_TARGET_CMDS
-	install -d $(BUILDER_TARGET_DIR)/usr/lib/lv2
-	cp -r $(@D)/bin/*.lv2 $(BUILDER_TARGET_DIR)/usr/lib/lv2/
+	cp -r $(@D)/bin/*.lv2 $($(PKG)_PKGDIR)/
 endef
 
 $(eval $(generic-package))
@@ -140,7 +139,7 @@ $(eval $(generic-package))
         return
 
     @copy_current_request_context
-    def buildlog(ws):
+    def buildlog(ws, reqid):
         if not ws.connected:
             ws.close()
             emit('status', 'closed')
@@ -152,20 +151,19 @@ $(eval $(generic-package))
             emit('status', 'finished')
             return
 
-        # if recv == '--- BINARY ---':
-        #     data = b''
-        #     while ws.connected:
-        #         recv = ws.recv()
-        #         if recv == '':
-        #             break
-        #         data += recv
-        #     emit('buildfile', encodebytes(data).decode('utf-8'))
-        #     ws.close()
-        #     return
+        if recv == '--- END ---':
+            reqdata = json.dumps({
+                'id': reqid
+            }).encode('utf-8')
+            req = urlopen(Request(f'http://{targethost}/', data=reqdata, headers=reqheaders, method='GET'))
+            resp = req.read()
+            emit('buildfile', encodebytes(resp).decode('utf-8'))
+            ws.close()
+            return
 
         print(recv, end='')
         emit('buildlog', recv)
-        spawn(buildlog, ws)
+        spawn(buildlog, ws, reqid)
 
     ws = create_connection(f'ws://{targethost}/build')
     ws.send(resp['id'])
@@ -175,7 +173,7 @@ $(eval $(generic-package))
         return
 
     emit('status', 'started')
-    spawn(buildlog, ws)
+    spawn(buildlog, ws, resp['id'])
 
 @app.route('/', methods=['GET'])
 def index():

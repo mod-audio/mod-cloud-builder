@@ -42,6 +42,7 @@ $('document').ready(function() {
         console.log('got buildlog:', msg)
     });
     socket.on('buildfile', function(data) {
+        console.log('got buildfile')
         // window.plugindata = data;
         var formdata = new FormData();
         formdata.append('package', new File([data], '-'));

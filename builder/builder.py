@@ -15,20 +15,19 @@ from tornado.websocket import WebSocketHandler
 BUILDER_PACKAGE_DIR = './plugins/package'
 TARGET_PLATFORM = 'moddwarf-new'
 
+os.environ['MPB_SKIP_PLUGIN_COPY'] = '1'
+
 class Builder(object):
     active = {}
 
     def __init__(self, pkgbundle):
-        self.pkgbundle = pkgbundle
-
+        self.proc = None
         self.projdir = TemporaryDirectory(dir=BUILDER_PACKAGE_DIR)
         self.projname = os.path.basename(self.projdir.name)
-
-        self.proc = None
+        self.pkgbundle = pkgbundle
 
     async def build(self, write_message_callback):
         print("Builder.build", write_message_callback)
-        os.environ['BUILDER_TARGET_DIR'] = self.projdir.name
         self.proc = await create_subprocess_shell(f'./build {TARGET_PLATFORM} {self.projname}', stdout=PIPE, stderr=STDOUT)
         while self.proc is not None:
             stdout = await self.proc.stdout.readline()
@@ -36,13 +35,13 @@ class Builder(object):
                 break
             if stdout == b'':
                 self.proc = None
-                # self.write_message(u"Build completed successfully, fetching plugin binaries...")
-                # self.write_message(u'--- BINARY ---')
-                # IOLoop.instance().add_callback(self.plugin_package)
+                write_message_callback(u"Build completed successfully.")
+                write_message_callback(u'--- END ---')
                 break
             write_message_callback(stdout)
 
     def destroy(self):
+        print("Builder.destroy")
         Builder.active.pop(self.projname)
 
         if self.proc is not None:
@@ -81,10 +80,6 @@ class BuilderRequest(RequestHandler):
             self.done({ 'ok': False, 'error': "Missing package" })
             return
 
-        if '$(BUILDER_TARGET_DIR)' not in package:
-            self.done({ 'ok': False, 'error': "Missing special handling for builder target dir" })
-            return
-
         files = self.jsonrequest.get('files', None)
         if not files:
             self.done({ 'ok': False, 'error': "Missing files" })
@@ -109,7 +104,7 @@ class BuilderRequest(RequestHandler):
         builder = Builder.create(pkgbundle)
 
         # create plugin files
-        with open(os.path.join(BUILDER_PACKAGE_DIR, builder.projname, builder.projname + '.mk'), 'w') as fh:
+        with open(os.path.join(BUILDER_PACKAGE_DIR, builder.projname, f'{builder.projname}.mk'), 'w') as fh:
             fh.write(package.replace(f'{pkgname}_', f'{builder.projname.upper()}_'))
 
         for f in files:
@@ -118,75 +113,30 @@ class BuilderRequest(RequestHandler):
 
         self.done({ 'ok': True, 'id': builder.projname })
 
-    def get(self):
-        package = self.get_argument('id')
-        # TODO
-        # 1: return packed binary
-        return
+    async def get(self):
+        builder = Builder.get(self.jsonrequest['id'])
+        folder = os.path.join(BUILDER_PACKAGE_DIR, builder.projname)
+        proc = await create_subprocess_shell(f'tar -C {folder} -chz {builder.pkgbundle} -O', stdout=PIPE)
+
+        while proc is not None:
+            stdout = await proc.stdout.read(8192)
+            if stdout == b'':
+                break
+            self.write(stdout)
+
+        self.finish()
 
 class BuilderWebSocket(WebSocketHandler):
-    # async def plugin_package(self):
-    #     # FIXME randomize bundle name?
-    #     self.proc = await create_subprocess_shell(f'tar -C ~/mod-workdir/moddwarf-new/plugins -chz midi-display.lv2 -O', stdout=PIPE)
-    #     while self.proc is not None:
-    #         stdout = await self.proc.stdout.read(8192)
-    #         if self.proc is None:
-    #             break
-    #         if stdout == b'':
-    #             self.proc = None
-    #             self.close()
-    #             break
-    #         self.write_message(stdout, True)
-    # 
-    # async def plugin_build(self):
-    #     self.proc = await create_subprocess_shell(f'./build moddwarf-new {self.projname}', stdout=PIPE, stderr=STDOUT)
-    #     while self.proc is not None:
-    #         stdout = await self.proc.stdout.readline()
-    #         if self.proc is None:
-    #             break
-    #         if stdout == b'':
-    #             self.proc = None
-    #             self.write_message(u"Build completed successfully, fetching plugin binaries...")
-    #             self.write_message(u'--- BINARY ---')
-    #             IOLoop.instance().add_callback(self.plugin_package)
-    #             break
-    #         self.write_message(stdout)
-
     async def build(self):
         print("BuilderWebSocket.build")
         await self.builder.build(self.write_message)
 
     def open(self):
         print("BuilderWebSocket.open")
-        # WebSocketHandler.open(self)
         self.builder = None
-    
-    # def close(self):
-    #     WebSocketHandler.close(self)
-    #     self.builder = None
 
     def on_message(self, message):
-        # if self.proc is not None:
-        #     self.write_message(u"Build already active, cannot trigger a 2nd one on the same socket")
-        #     self.close()
-        #     return
-        # 
-        # message = message.strip()
-        # versionline = message.split('\n',1)[0].split('#',1)[0]
-        # versionpkg = versionline.split('_VERSION',1)[0]
-        # if not versionpkg or ' ' in versionpkg:
-        #     self.write_message(u"Invalid package")
-        #     self.close()
-        #     return
-        # 
-        # self.projdir = TemporaryDirectory(dir='./plugins/package')
-        # self.projname = os.path.basename(self.projdir.name)
-        # 
-        # with open(os.path.join(self.projdir.name, self.projname + '.mk'), 'w') as fh:
-        #     fh.write(message.replace(versionpkg+'_',self.projname.upper()+'_'))
-
-        # self.write_message(u"Starting build for "+versionpkg.lower()+'...')
-
+        print("BuilderWebSocket.on_message", message)
         if not message.isalnum():
             self.close()
             return
@@ -199,12 +149,6 @@ class BuilderWebSocket(WebSocketHandler):
         if self.builder is None:
             return
         self.builder.destroy()
-
-        # proc = self.proc
-        # projdir = self.projdir
-        # self.proc = self.projname = self.projdir = None
-        # proc.kill()
-        # projdir.cleanup()
 
     def check_origin(self, origin):
         return True
