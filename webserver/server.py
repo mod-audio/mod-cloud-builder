@@ -169,8 +169,6 @@ $(eval $(generic-package))
     package = createmk(msg, symbol)
 
     if package is None:
-        emit('buildlog', 'The requested build target is not yet implemented, cannot continue')
-        emit('status', 'error')
         return
 
     reqdata = json.dumps({
