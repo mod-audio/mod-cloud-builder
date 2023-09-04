@@ -48,7 +48,17 @@ $('document').ready(function() {
         return name;
     }
 
-    var socket = io((window.location.protocol === 'https:' ? 'wss' : 'ws') + '://' + window.location.host + '/');
+    var proto, secure;
+    if (window.location.protocol === 'https:') {
+        proto = 'wss:';
+        secure = true;
+        console.log("using https");
+    } else {
+        proto = 'ws:';
+        secure = false;
+        console.log("using http");
+    }
+    var socket = io(proto + '//' + window.location.host + '/', { secure: secure });
     socket.on('connect', function() {
         $('#build').removeClass('disabled');
     });
