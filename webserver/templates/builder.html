@@ -48,7 +48,7 @@ $('document').ready(function() {
         return name;
     }
 
-    var socket = io('ws://' + window.location.host + '/');
+    var socket = io((window.location.protocol === 'https:' ? 'wss' : 'ws') + '://' + window.location.host + '/');
     socket.on('connect', function() {
         $('#build').removeClass('disabled');
     });
