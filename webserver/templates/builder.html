@@ -18,18 +18,16 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
 <script type="text/javascript" charset="utf-8">
 $('document').ready(function() {
-    // var ws = new WebSocket('ws://192.168.51.1/rpbsocket');
-    // ws.onopen = function() {
-    //     ws.onmessage = function (evt) {
-    //         console.log(evt)
-    //         ws.close();
-    //     }
-    // 
-    //     ws.send('hello')
-    // }
-    // ws.onerror = function (err) {
-    //     console.log(err)
-    // }
+    var ioConnected = false;
+    var modConnected = false;
+
+    function enable() {
+        if (!ioConnected || !modConnected) {
+            return;
+        }
+        $('#status').html('Status: ready');
+        $('#build').removeClass('disabled');
+    }
 
     function symbolify(name) {
         if (!name) {
@@ -42,6 +40,37 @@ $('document').ready(function() {
         return name;
     }
 
+    var ws = new WebSocket('ws://192.168.51.1/rplsocket');
+    ws.onmessage = function (evt) {
+        var data = JSON.parse(evt.data);
+        if (! modConnected) {
+            modConnected = data['platform'];
+            enable();
+        } else if (! data['ok']) {
+            $('#status').html('Status: error');
+            $('#log').append(data['error'] + '<br>');
+        } else {
+            $('#status').html('Status: uploaded');
+            $('#log').append(data['installed'] + ' has been installed.<br>');
+        }
+    }
+    ws.onopen = function() {
+        ws.send('');
+    };
+    ws.onclose = function () {
+        if (modConnected) {
+            modConnected = false;
+            $('#build').addClass('disabled');
+            $('#upload').addClass('disabled');
+            $('#status').html('Status: disconnected');
+            $('#log').append('The MOD unit has been disconnected.<br>');
+        }
+    }
+    ws.onerror = function () {
+        $('#status').html('Status: error');
+        $('#log').append('Unable to connect to MOD unit, not plugged in to USB or running < 1.13.2?<br>');
+    }
+
     var proto;
     if (window.location.protocol === 'https:') {
         proto = 'wss:';
@@ -50,7 +79,8 @@ $('document').ready(function() {
     }
     var socket = io(proto + '//' + window.location.host + '/');
     socket.on('connect', function() {
-        $('#build').removeClass('disabled');
+        ioConnected = true;
+        enable();
     });
     socket.on('status', function(status) {
         $('#status').html('Status: ' + status);
@@ -69,13 +99,10 @@ $('document').ready(function() {
         // $('#build').removeClass('disabled');
         $('#upload').removeClass('disabled');
     });
-    socket.on('response', function(msg) {
-        console.log(msg)
-    });
 
     $('#build').addClass('disabled');
     $('#form').submit(function() {
-        if ($('#build').hasClass('disabled')) {
+        if (!ioConnected || !modConnected || $('#build').hasClass('disabled')) {
             return false;
         }
         $('#log').html('');
@@ -85,7 +112,7 @@ $('document').ready(function() {
         }
         var data = {
             type: 'maxgen',
-            device: 'dwarf', // FIXME make dynamic
+            device: modConnected,
             files: {},
             name: $('#name').val(),
             brand: $('#brand').val(),
@@ -108,23 +135,12 @@ $('document').ready(function() {
         return false;
     });
     $('#upload').addClass('disabled').click(function() {
-        if ($(this).hasClass('disabled')) {
+        if (!ioConnected || !modConnected || $(this).hasClass('disabled') || !window.plugindata) {
             return false;
         }
-        var formdata = new FormData();
-        formdata.append('package', new File([window.plugindata], '-'));
-        fetch('http://192.168.51.1/sdk/install', {
-            method: 'POST',
-            // mode: 'cors',
-            body: formdata
-        }).then((response) => {
-            console.log('build push okay!', response)
-            return response.json();
-        }).then((response) => {
-            console.log(response);
-        }).catch((error) => {
-            console.log('build push error', error)
-        });
+        $('#status').html('Status: uploading');
+        $('#log').html('');
+        ws.send(window.plugindata);
         return false;
     });
     $('#name').change(function(e) {
