@@ -48,17 +48,13 @@ $('document').ready(function() {
         return name;
     }
 
-    var proto, secure;
+    var proto;
     if (window.location.protocol === 'https:') {
         proto = 'wss:';
-        secure = true;
-        console.log("using https");
     } else {
         proto = 'ws:';
-        secure = false;
-        console.log("using http");
     }
-    var socket = io(proto + '//' + window.location.host + '/', { secure: secure });
+    var socket = io(proto + '//' + window.location.host + '/');
     socket.on('connect', function() {
         $('#build').removeClass('disabled');
     });
