@@ -154,10 +154,11 @@ class BuilderWebSocket(WebSocketHandler):
         return True
 
 if __name__ == "__main__":
-    print ("Starting using port 8000...")
+    port = int(os.getenv('MCB_BUILDER_PORT', 8000))
+    print (f'Starting using port {port}...')
     app = Application([
         (r'/', BuilderRequest),
         (r'/build', BuilderWebSocket)
     ])
-    app.listen(8000)
+    app.listen(port)
     IOLoop.instance().start()

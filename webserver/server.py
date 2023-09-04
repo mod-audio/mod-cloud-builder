@@ -59,9 +59,9 @@ categories = [
 ]
 
 targets = {
-    'duo': '127.0.0.1:8001',
-    'duox': '127.0.0.1:8002',
-    'dwarf': '127.0.0.1:8003',
+    'duo': 'modduo-builder:8001',
+    'duox': 'modduox-builder:8002',
+    'dwarf': 'moddwarf-builder:8003',
 }
 
 # setup
@@ -80,9 +80,14 @@ def symbolify(name):
 
 @socketio.on('build')
 def build(msg):
-    print('build message')
+    print('build started')
 
-    if msg.get('target', None) not in targets:
+    if msg.get('type', None) not in ('maxgen',):
+        emit('buildlog', 'Invalid build target, cannot continue')
+        emit('status', 'error')
+        return
+
+    if msg.get('device', None) not in targets:
         emit('buildlog', 'Invalid device target, cannot continue')
         emit('status', 'error')
         return
@@ -109,30 +114,28 @@ def build(msg):
         emit('status', 'error')
         return
 
-    name = msg['name']
-    brand = msg.get('brand', None) or 'max-gen'
-    symbol = symbolify(msg['symbol'])
+    @copy_current_request_context
+    def createmk(msg, symbol):
+        if msg['type'] == 'maxgen':
+            if 'gen_exported.cpp' not in msg['files']:
+                emit('buildlog', 'The file gen_exported.cpp is missing, cannot continue')
+                emit('status', 'error')
+                return None
 
-    bundle = f"max-gen-{symbol}"
-    uri = f"urn:maxgen:{symbol}"
+            if 'gen_exported.h' not in msg['files']:
+                emit('buildlog', 'The file gen_exported.h is missing, cannot continue')
+                emit('status', 'error')
+                return None
 
-    if 'gen_exported.cpp' not in msg['files']:
-        emit('buildlog', 'The file gen_exported.cpp is missing, cannot continue')
-        emit('status', 'error')
-        return
+            name = msg['name']
+            brand = msg['brand']
+            bundle = f"max-gen-{symbol}"
+            uri = f"urn:maxgen:{symbol}"
+            if not brand:
+                brand = 'max-gen'
 
-    if 'gen_exported.h' not in msg['files']:
-        emit('buildlog', 'The file gen_exported.h is missing, cannot continue')
-        emit('status', 'error')
-        return
-
-    reqdata = json.dumps({
-      'name': name,
-      'files': {
-          'gen_exported.cpp': msg['files']['gen_exported.cpp'],
-          'gen_exported.h': msg['files']['gen_exported.h'],
-      },
-      'package': f"""
+            # TODO use brand, symbol/uri and category
+            return f"""
 MAX_GEN_SKELETON_VERSION = 7b93c46d1b689d93b405256d86de31fb380b4966
 MAX_GEN_SKELETON_SITE = https://github.com/moddevices/max-gen-skeleton.git
 MAX_GEN_SKELETON_SITE_METHOD = git
@@ -158,17 +161,32 @@ endef
 
 $(eval $(generic-package))
 """
+        return None
+
+    name = msg['name']
+    brand = msg.get('brand', None)
+    symbol = symbolify(msg['symbol'])
+    package = createmk(msg, symbol)
+
+    if package is None:
+        emit('buildlog', 'The requested build target is not yet implemented, cannot continue')
+        emit('status', 'error')
+        return
+
+    reqdata = json.dumps({
+      'name': msg['name'],
+      'files': msg['files'],
+      'package': package,
     }).encode('utf-8')
 
     reqheaders = {
       'Content-Type': 'application/json; charset=UTF-8',
     }
 
-    targethost = targets[msg['target']]
+    targethost = targets[msg['device']]
 
     req = urlopen(Request(f'http://{targethost}/', data=reqdata, headers=reqheaders))
     resp = json.loads(req.read().decode('utf-8'))
-    print(resp)
 
     if not resp['ok']:
         emit('buildlog', resp['error'])
