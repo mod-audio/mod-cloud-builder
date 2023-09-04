@@ -78,17 +78,8 @@ def symbolify(name):
         name = '_' + name
     return name
 
-@socketio.on('connect')
-def test_connect(auth):
-    print('Client Connected', auth)
-    emit('response', {'data': 'Connected'})
-
-@socketio.on('disconnect')
-def test_disconnect():
-    print('Client disconnected')
-
 @socketio.on('build')
-def test_message(msg):
+def build(msg):
     print('build message')
 
     if msg.get('target', None) not in targets:
@@ -224,11 +215,13 @@ $(eval $(generic-package))
 
 @app.route('/', methods=['GET'])
 def index():
-    return render_template('index.html', builders=builders)
+    # TODO
+    return redirect('/maxgen', code=302)
+    # return render_template('index.html', builders=builders)
 
 @app.route('/device', methods=['GET'])
 def device():
-    return redirect('http://192.168.51.1/hello', code=301)
+    return redirect('http://192.168.51.1/hello', code=302)
 
 # TODO
 # @app.route('/faust', methods=['GET'])

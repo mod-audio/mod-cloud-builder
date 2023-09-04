@@ -5,9 +5,8 @@
 all: images
 
 # TODO make images target use a single job
-images: .stamp-modduo-builder .stamp-modduox-builder .stamp-moddwarf-builder
+images: .stamp-modduo-builder .stamp-modduox-builder .stamp-moddwarf-builder .stamp-webserver-image
 # modduo-image modduox-image moddwarf-image
-# webserver-image
 
 # .PHONY: .stamp-modduo-builder .stamp-modduox-builder .stamp-moddwarf-builder
 
@@ -23,10 +22,10 @@ images: .stamp-modduo-builder .stamp-modduox-builder .stamp-moddwarf-builder
 .stamp-%-builder: .stamp-%-image builder/Dockerfile builder/builder.py
 	$(shell which docker) build builder --build-arg platform=$* --tag mcb-builder-$* && touch $@
 
-# .stamp-webserver-image:
-# 	$(shell which docker) build webserver --tag mcb-webserver && touch $@
+.stamp-webserver-image: webserver/Dockerfile webserver/server.py webserver/templates/*.html
+	$(shell which docker) build webserver --tag mcb-webserver && touch $@
 
-run: .stamp-moddwarf-builder
+run: images
 	$(shell which docker-compose) down -t 1
 	$(shell which docker-compose) up -d
-	$(shell which docker) logs mod-cloud-builder_moddwarf-builder_1 -t -f
+	$(shell which docker) logs mod-cloud-builder_webserver_1 -t -f

@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && apt-get upgrade -qqy && apt-get clean
 
 # install required packages
-RUN apt-get install -qqy pylint python3-flask python3-flask-socketio python3-flask-sockets && \
+RUN apt-get install -qqy git pylint python3-flask python3-flask-socketio python3-flask-sockets python3-websocket && \
     apt-get clean
 
 # user configuration
@@ -20,5 +20,15 @@ RUN useradd -d $HOME -m $USER
 USER $USER
 WORKDIR $HOME
 
-# CMD
-CMD ["bash"]
+# setup for this instance
+ENV MOD_UI_HTML_DIR $HOME/mod-ui/html
+ENV PYTHONUNBUFFERED 1
+
+# copy builder code
+RUN mkdir $HOME/templates
+RUN git clone --depth=1 https://github.com/moddevices/mod-ui.git
+COPY server.py $HOME
+COPY templates/*.html $HOME/templates/
+
+# entry point
+ENTRYPOINT $HOME/server.py
