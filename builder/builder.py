@@ -107,9 +107,9 @@ class BuilderRequest(RequestHandler):
         with open(os.path.join(BUILDER_PACKAGE_DIR, builder.projname, f'{builder.projname}.mk'), 'w') as fh:
             fh.write(package.replace(f'{pkgname}_', f'{builder.projname.upper()}_'))
 
-        for f in files:
-            with open(os.path.join(BUILDER_PACKAGE_DIR, builder.projname, f['filename']), 'w') as fh:
-                fh.write(f['content'])
+        for filename, content in files.items():
+            with open(os.path.join(BUILDER_PACKAGE_DIR, builder.projname, filename), 'w') as fh:
+                fh.write(content)
 
         self.done({ 'ok': True, 'id': builder.projname })
 

@@ -9,9 +9,10 @@ import sys
 import json
 
 from base64 import encodebytes
-from flask import Flask, copy_current_request_context, request, render_template, send_from_directory
+from flask import Flask, Response, copy_current_request_context, request, render_template, send_from_directory
 from flask_socketio import SocketIO, emit, send
 from gevent import spawn
+from re import sub as re_sub
 from urllib.request import Request, urlopen
 from websocket import create_connection
 
@@ -57,11 +58,25 @@ categories = [
     'Utility',
 ]
 
+targets = {
+    'duo': '127.0.0.1:8001',
+    'duox': '127.0.0.1:8002',
+    'dwarf': '127.0.0.1:8003',
+}
+
 # setup
 app = Flask(__name__)
 # Disable caching?
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 socketio = SocketIO(app)
+
+def symbolify(name):
+    if len(name) == 0:
+        return '_'
+    name = re_sub('[^_a-zA-Z0-9]+', '_', name)
+    if name[0].isdigit():
+        name = '_' + name
+    return name
 
 @socketio.on('connect')
 def test_connect(auth):
@@ -72,36 +87,65 @@ def test_connect(auth):
 def test_disconnect():
     print('Client disconnected')
 
-def read_example_file(filename):
-    with open(os.path.join(os.path.dirname(__file__), filename), 'r') as fh:
-        return fh.read()
-
-@socketio.on('my event')
+@socketio.on('build')
 def test_message(msg):
-    print('Client message', msg)
+    print('build message')
 
-    targethost = '127.0.0.1:8003'
+    if msg.get('target', None) not in targets:
+        emit('buildlog', 'Invalid device target, cannot continue')
+        emit('status', 'error')
+        return
 
-    name = "max-gen-demo"
-    # | sed -e "s/[^A-Za-z0-9._-]/_/g"
+    if not msg.get('name', None):
+        emit('buildlog', 'Name is empty, cannot continue')
+        emit('status', 'error')
+        return
+
+    if not msg.get('symbol', None):
+        emit('buildlog', 'Symbol is empty, cannot continue')
+        emit('status', 'error')
+        return
+
+    if not msg.get('files', None):
+        emit('buildlog', 'No files provided, cannot continue')
+        emit('status', 'error')
+        return
+
+    category = msg.get('category', None) or '(none)'
+
+    if category not in categories:
+        emit('buildlog', 'Invalid category, cannot continue')
+        emit('status', 'error')
+        return
+
+    name = msg['name']
+    brand = msg.get('brand', None) or 'max-gen'
+    symbol = symbolify(msg['symbol'])
+
+    bundle = f"max-gen-{symbol}"
+    uri = f"urn:maxgen:{symbol}"
+
+    if 'gen_exported.cpp' not in msg['files']:
+        emit('buildlog', 'The file gen_exported.cpp is missing, cannot continue')
+        emit('status', 'error')
+        return
+
+    if 'gen_exported.h' not in msg['files']:
+        emit('buildlog', 'The file gen_exported.h is missing, cannot continue')
+        emit('status', 'error')
+        return
 
     reqdata = json.dumps({
-      'name': '',
-      'files': [
-          {
-              'filename': "gen_exported.cpp",
-              'content': read_example_file("examples/gen_exported.cpp"),
-          },
-          {
-              'filename': "gen_exported.h",
-              'content': read_example_file("examples/gen_exported.h"),
-          }
-      ],
+      'name': name,
+      'files': {
+          'gen_exported.cpp': msg['files']['gen_exported.cpp'],
+          'gen_exported.h': msg['files']['gen_exported.h'],
+      },
       'package': f"""
 MAX_GEN_SKELETON_VERSION = 7b93c46d1b689d93b405256d86de31fb380b4966
 MAX_GEN_SKELETON_SITE = https://github.com/moddevices/max-gen-skeleton.git
 MAX_GEN_SKELETON_SITE_METHOD = git
-MAX_GEN_SKELETON_BUNDLES = {name}.lv2
+MAX_GEN_SKELETON_BUNDLES = {bundle}.lv2
 
 MAX_GEN_SKELETON_TARGET_MAKE = $(TARGET_MAKE_ENV) $(TARGET_CONFIGURE_OPTS) $(MAKE) PREFIX=/usr NOOPT=true -C $(@D)
 
@@ -118,7 +162,7 @@ define MAX_GEN_SKELETON_BUILD_CMDS
 endef
 
 define MAX_GEN_SKELETON_INSTALL_TARGET_CMDS
-	cp -r $(@D)/bin/*.lv2 $($(PKG)_PKGDIR)/
+	mv $(@D)/bin/*.lv2 $($(PKG)_PKGDIR)/{bundle}.lv2
 endef
 
 $(eval $(generic-package))
@@ -128,6 +172,8 @@ $(eval $(generic-package))
     reqheaders = {
       'Content-Type': 'application/json; charset=UTF-8',
     }
+
+    targethost = targets[msg['target']]
 
     req = urlopen(Request(f'http://{targethost}/', data=reqdata, headers=reqheaders))
     resp = json.loads(req.read().decode('utf-8'))
@@ -147,11 +193,12 @@ $(eval $(generic-package))
 
         recv = ws.recv()
         if recv == '':
+            # FIXME?
             ws.close()
             emit('status', 'finished')
             return
 
-        if recv == '--- END ---':
+        elif recv == '--- END ---':
             reqdata = json.dumps({
                 'id': reqid
             }).encode('utf-8')
@@ -172,16 +219,36 @@ $(eval $(generic-package))
         emit('status', 'error')
         return
 
-    emit('status', 'started')
+    emit('status', 'building')
     spawn(buildlog, ws, resp['id'])
 
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html', builders=builders)
 
-@app.route('/faust', methods=['GET'])
-def faust():
-    return render_template('faust.html', categories=categories, uri='urn:faust:example')
+# TODO
+# @app.route('/faust', methods=['GET'])
+# def faust():
+#     return render_template('builder.html',
+#                            categories=categories,
+#                            name='faust',
+#                            filenames='faust dsp')
+
+@app.route('/maxgen', methods=['GET'])
+def maxgen():
+    return render_template('builder.html',
+                           categories=categories,
+                           buildername='MAX gen~',
+                           name='',
+                           brand='',
+                           symbol='',
+                           category='(none)',
+                           fileexts='.h, .cpp',
+                           filenames='gen_exported.cpp and gen_exported.h')
+
+@app.route('/maxgen', methods=['POST'])
+def maxgen_post():
+    return Response(status=204)
 
 @app.route('/plugins', methods=['GET'])
 def plugins():

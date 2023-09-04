@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+{% block content %}
+<style type="text/css" media="screen">
+#cloud-plugins-library .filter {
+  left: none;
+  right: none;
+  width: calc(350px - 20px);
+  margin: 0 10px;
+}
+.cloud-plugins {
+  left: 350px;
+}
+#log {
+    color: #ccc;
+    padding: 20px;
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
+<script type="text/javascript" charset="utf-8">
+$('document').ready(function() {
+    // var ws = new WebSocket('ws://192.168.51.1/rpbsocket');
+    // ws.onopen = function() {
+    //     ws.onmessage = function (evt) {
+    //         console.log(evt)
+    //         ws.close();
+    //     }
+    // 
+    //     ws.send('hello')
+    // }
+    // ws.onerror = function (err) {
+    //     console.log(err)
+    // }
+
+    function symbolify(name) {
+        if (!name) {
+            return '_';
+        }
+        name = name.replace(/[^_a-zA-Z0-9]+/g, '_');
+        if (name[0].match(/[0-9]/)) {
+            name = '_' + name;
+        }
+        return name;
+    }
+
+    var socket = io('ws://' + window.location.host + '/');
+    socket.on('connect', function() {
+        $('#build').removeClass('disabled');
+    });
+    socket.on('status', function(status) {
+        $('#status').html('Status: ' + status);
+        if (status == 'building') {
+            $('#build').addClass('disabled');
+            $('#upload').addClass('disabled');
+        }
+    });
+    socket.on('buildlog', function(msg) {
+        $('#log').append(msg + '<br>');
+        $('#log').parent().animate({ scrollTop: $('#log')[0].scrollHeight }, 200);
+    });
+    socket.on('buildfile', function(data) {
+        window.plugindata = data;
+        $('#status').html('Status: build complete');
+        // $('#build').removeClass('disabled');
+        $('#upload').removeClass('disabled');
+    });
+    socket.on('response', function(msg) {
+        console.log(msg)
+    });
+
+    $('#build').addClass('disabled');
+    $('#form').submit(function() {
+        if ($('#build').hasClass('disabled')) {
+            return false;
+        }
+        $('#log').html('');
+        var files = $('#files')[0].files;
+        if (!files.length) {
+            return false;
+        }
+        var data = {
+            type: 'maxgen',
+            files: {},
+            target: 'dwarf', // FIXME make dynamic
+            name: $('#name').val(),
+            brand: $('#brand').val(),
+            symbol: $('#symbol').val(),
+            category: $('#category').val(),
+        };
+        var numFilesRead = 0;
+        for (var i=0; i<files.length; ++i) {
+            var reader = new FileReader();
+            reader.name = files[i].name;
+            reader.onload = function() {
+                var reader = this;
+                data.files[reader.name] = reader.result;
+                if (++numFilesRead === files.length) {
+                    socket.emit('build', data);
+                }
+            };
+            reader.readAsText(files[i]);
+        }
+        return false;
+    });
+    $('#upload').addClass('disabled').click(function() {
+        if ($(this).hasClass('disabled')) {
+            return false;
+        }
+        var formdata = new FormData();
+        formdata.append('package', new File([window.plugindata], '-'));
+        fetch('http://192.168.51.1/sdk/install', {
+            method: 'POST',
+            // mode: 'cors',
+            body: formdata
+        }).then((response) => {
+            console.log('build push okay!', response)
+            return response.json();
+        }).then((response) => {
+            console.log(response);
+        }).catch((error) => {
+            console.log('build push error', error)
+        });
+        return false;
+    });
+    $('#name').change(function(e) {
+        if (!$('#symbol').val()) {
+            $('#symbol').val(symbolify($('#name').val()));
+        }
+    });
+    $('#symbol').change(function(e) {
+        var value = $('#symbol').val();
+        var symbol = value.length !== 0 ? symbolify(value) : symbolify($('#name').val());
+        if (value != symbol) {
+            $('#symbol').val(symbol);
+        }
+    });
+})
+</script>
+<div id="cloud-plugins-library">
+    <div class="box clearfix">
+        <header>
+            <h1 class="bottom top">{{ buildername | upper }} PLUGIN BUIDER</h1>
+        </header>
+        <div id="cloudplugin-results-wrapper">
+            <div class="filter clearfix">
+                <h2>Plugin settings</h2>
+                <form id="form">
+                    <div class="form-group">
+                        <label for="files" class="form-label">Plugin files</label>
+                        <input type="file" class="form-control" name="files[]" id="files" accept="{{ fileexts }}" multiple required>
+                    </div>
+                    <div class="form-group">
+                        <label for="name" class="form-label">Plugin name</label>
+                        <input type="text" class="form-control" name="name" value="{{ name }}" id="name" placeholder="Plugin name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="brand" class="form-label">Plugin brand</label>
+                        <input type="text" class="form-control" name="brand" value="{{ brand }}" id="brand" placeholder="Plugin brand">
+                    </div>
+                    <div class="form-group">
+                        <label for="symbol" class="form-label">Plugin symbol</label>
+                        <input type="text" class="form-control" name="symbol" value="{{ symbol }}" id="symbol" placeholder="Plugin symbol" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="category" class="form-label">Plugin category</label>
+                        <select name="category" class="form-control" id="category">
+                            {% for category in categories %}
+                            <option value="{{ category }}">
+                                {{ category }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <!--
+                    <div class="mb-3 form-group form-check">
+                        <input class="form-check-input" type="checkbox" value="" id="save-settings">
+                        <label class="form-check-label" for="save-settings">
+                            Save settings as default
+                        </label>
+                    </div>
+                    -->
+                    <input type="submit" class="btn btn-primary" value="Build" id="build">
+                    <input type="button" class="btn btn-primary" value="Upload" id="upload">
+                </form>
+            </div>
+            <div class="cloud-plugins clearfix js-cloud-plugins">
+                <div>
+                    <h2 id="status">Upload your {{ filenames }} files to begin</h2>
+                    <div id="log" class="plugins-wrapper"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
