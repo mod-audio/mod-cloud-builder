@@ -14,12 +14,6 @@
     color: #ccc;
     padding: 20px;
 }
-iframe {
-    position: absolute;
-    background: white;
-    bottom: 0;
-    right: 0;
-}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
 <script type="text/javascript" charset="utf-8">
@@ -145,9 +139,6 @@ $('document').ready(function() {
             $('#symbol').val(symbol);
         }
     });
-    $('#connect').click(function(e) {
-        $('#iframe').attr('src', 'http://192.168.51.1/hello');
-    })
 })
 </script>
 <div id="cloud-plugins-library">
@@ -193,7 +184,6 @@ $('document').ready(function() {
                         </label>
                     </div>
                     -->
-                    <input type="button" class="btn btn-primary" value="Connect" id="connect">
                     <input type="submit" class="btn btn-primary" value="Build" id="build">
                     <input type="button" class="btn btn-primary" value="Upload" id="upload">
                 </form>
@@ -204,7 +194,6 @@ $('document').ready(function() {
                     <div id="log" class="plugins-wrapper"></div>
                 </div>
             </div>
-            <iframe id="iframe" src=""></iframe>
         </div>
     </div>
 </div>

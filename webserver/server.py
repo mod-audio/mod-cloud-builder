@@ -235,11 +235,6 @@ def index():
     return redirect('/maxgen', code=302)
     # return render_template('index.html', builders=builders)
 
-@app.route('/device', methods=['GET'])
-def device():
-    return render_template('redirect.html')
-    # return redirect('http://192.168.51.1/hello', code=302)
-
 # TODO
 # @app.route('/faust', methods=['GET'])
 # def faust():
