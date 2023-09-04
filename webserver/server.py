@@ -9,7 +9,7 @@ import sys
 import json
 
 from base64 import encodebytes
-from flask import Flask, Response, copy_current_request_context, request, render_template, send_from_directory
+from flask import Flask, Response, copy_current_request_context, redirect, request, render_template, send_from_directory
 from flask_socketio import SocketIO, emit, send
 from gevent import spawn
 from re import sub as re_sub
@@ -225,6 +225,10 @@ $(eval $(generic-package))
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html', builders=builders)
+
+@app.route('/device', methods=['GET'])
+def device():
+    return redirect('http://192.168.51.1/hello', code=301)
 
 # TODO
 # @app.route('/faust', methods=['GET'])
