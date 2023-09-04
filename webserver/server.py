@@ -68,7 +68,7 @@ targets = {
 app = Flask(__name__)
 # Disable caching?
 app.config['TEMPLATES_AUTO_RELOAD'] = True
-socketio = SocketIO(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 def symbolify(name):
     if len(name) == 0:
