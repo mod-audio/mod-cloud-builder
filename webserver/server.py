@@ -83,7 +83,7 @@ def build(msg):
     print('build started')
 
     buildtype = msg.get('type', None)
-    if buildtype is None or buildtype not in ('maxgen',):
+    if buildtype is None or buildtype not in ('faust', 'maxgen'):
         emit('buildlog', 'Invalid build target, cannot continue')
         emit('status', 'error')
         return
@@ -131,7 +131,49 @@ def build(msg):
     else:
         category = f"lv2:{category}Plugin"
 
-    if buildtype == 'maxgen':
+    if buildtype == 'faust':
+        if len(files.keys()) != 1:
+            emit('buildlog', 'More than 1 file uploaded, this is not allowed, please upload a single file')
+            emit('status', 'error')
+            return
+
+        if not brand:
+            brand = 'FAUST'
+
+        bundle = f"faust-{symbol}"
+        package = f"""
+FAUST_SKELETON_VERSION = 2ce09b6ac8dffbe969d05d5e9d27b88e13b8a426
+FAUST_SKELETON_SITE = https://github.com/moddevices/faust-skeleton.git
+FAUST_SKELETON_SITE_METHOD = git
+FAUST_SKELETON_BUNDLES = {bundle}.lv2
+
+FAUST_SKELETON_TARGET_MAKE = $(TARGET_MAKE_ENV) $(TARGET_CONFIGURE_OPTS) $(MAKE) PREFIX=/usr NOOPT=true -C $(@D)
+
+FAUST_SKELETON_PRE_DOWNLOAD_HOOKS += MOD_PLUGIN_BUILDER_DOWNLOAD_WITH_SUBMODULES
+
+define FAUST_SKELETON_CONFIGURE_CMDS
+	cp $($(PKG)_PKGDIR)/*.dsp $(@D)/plugin/
+	env FAUST_AUTOMATED=1 \
+		FAUST_NAME="{name}" \
+		FAUST_BRAND="{brand}" \
+		FAUST_SYMBOL="{symbol}" \
+		FAUST_DESCRIPTION="FAUST based plugin, automatically generated via mod-cloud-builder" \
+		FAUST_LV2_CATEGORY="{category}" \
+		$(@D)/setup.sh
+endef
+
+define FAUST_SKELETON_BUILD_CMDS
+	$(FAUST_SKELETON_TARGET_MAKE)
+endef
+
+define FAUST_SKELETON_INSTALL_TARGET_CMDS
+	mv $(@D)/bin/*.lv2 $($(PKG)_PKGDIR)/{bundle}.lv2
+endef
+
+$(eval $(generic-package))
+"""
+
+    elif buildtype == 'maxgen':
         if 'gen_exported.cpp' not in files:
             emit('buildlog', 'The file gen_exported.cpp is missing, cannot continue')
             emit('status', 'error')
@@ -163,8 +205,8 @@ define MAX_GEN_SKELETON_CONFIGURE_CMDS
 		MAX_GEN_NAME="{name}" \
 		MAX_GEN_BRAND="{brand}" \
 		MAX_GEN_SYMBOL="{symbol}" \
-		MAX_GEN_LV2_CATEGORY="{category}" \
 		MAX_GEN_DESCRIPTION="MAX gen~ based plugin, automatically generated via mod-cloud-builder" \
+		MAX_GEN_LV2_CATEGORY="{category}" \
 		$(@D)/setup.sh
 endef
 
@@ -250,19 +292,29 @@ def index():
     return redirect('/maxgen', code=302)
     # return render_template('index.html', builders=builders)
 
-# TODO
-# @app.route('/faust', methods=['GET'])
-# def faust():
-#     return render_template('builder.html',
-#                            categories=categories,
-#                            name='faust',
-#                            filenames='faust dsp')
+@app.route('/faust', methods=['GET'])
+def faust():
+    return render_template('builder.html',
+                           categories=categories,
+                           buildername='FAUST',
+                           buildertype='faust',
+                           name='',
+                           brand='',
+                           symbol='',
+                           category='(none)',
+                           fileexts='.dsp',
+                           filenames='faust dsp')
+
+@app.route('/faust', methods=['POST'])
+def faust_post():
+    return Response(status=204)
 
 @app.route('/maxgen', methods=['GET'])
 def maxgen():
     return render_template('builder.html',
                            categories=categories,
                            buildername='MAX gen~',
+                           buildertype='maxgen',
                            name='',
                            brand='',
                            symbol='',
