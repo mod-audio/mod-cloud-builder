@@ -125,9 +125,15 @@ $('document').ready(function() {
     });
     socket.on('status', function(status) {
         $('#status').html('Status: ' + status);
-        if (status == 'building') {
+        switch (status) {
+        case 'building':
             $('#build').addClass('disabled');
             $('#upload').addClass('disabled');
+            break;
+        case 'closed':
+            $('#build').removeClass('disabled');
+            $('#upload').addClass('disabled');
+            break;
         }
     });
     socket.on('buildlog', function(msg) {
@@ -141,12 +147,21 @@ $('document').ready(function() {
         $('#upload').removeClass('disabled');
     });
 
+    // reconnect to a MOD unit
+    $('#connect').click(function() {
+        if (modConnected || $(this).hasClass('disabled')) {
+            return;
+        }
+        modconnect();
+    });
+
     // form submit, the "build" action
     $('#build').addClass('disabled');
     $('#form').submit(function() {
         if (!ioConnected || !modConnected || $('#build').hasClass('disabled')) {
             return false;
         }
+        $('#status').html('Status: preparing');
         $('#log').html('');
         var files = $('#files')[0].files;
         if (!files.length) {
@@ -176,12 +191,6 @@ $('document').ready(function() {
         }
         return false;
     });
-    $('#connect').click(function() {
-        if (modConnected || $(this).hasClass('disabled')) {
-            return;
-        }
-        modconnect();
-    })
 
     // upload function, only allowed after build
     $('#upload').addClass('disabled').click(function() {
@@ -224,15 +233,15 @@ $('document').ready(function() {
                     </div>
                     <div class="form-group">
                         <label for="name" class="form-label">Plugin name</label>
-                        <input type="text" class="form-control" name="name" value="{{ name }}" id="name" placeholder="Plugin name" required>
+                        <input type="text" class="form-control" name="name" value="{{ name }}" id="name" placeholder="Plugin name" autocomplete="on" required>
                     </div>
                     <div class="form-group">
                         <label for="brand" class="form-label">Plugin brand</label>
-                        <input type="text" class="form-control" name="brand" value="{{ brand }}" id="brand" placeholder="Plugin brand">
+                        <input type="text" class="form-control" name="brand" value="{{ brand }}" id="brand" placeholder="Plugin brand" autocomplete="on">
                     </div>
                     <div class="form-group">
                         <label for="symbol" class="form-label">Plugin symbol</label>
-                        <input type="text" class="form-control" name="symbol" value="{{ symbol }}" id="symbol" placeholder="Plugin symbol" required>
+                        <input type="text" class="form-control" name="symbol" value="{{ symbol }}" id="symbol" placeholder="Plugin symbol" autocomplete="on" required>
                     </div>
                     <div class="form-group">
                         <label for="category" class="form-label">Plugin category</label>

@@ -211,10 +211,10 @@ $(eval $(generic-package))
             return
 
         recv = ws.recv()
-        if recv == '':
-            # FIXME?
+        if not ws.connected:
             ws.close()
-            emit('status', 'finished')
+            emit('buildlog', recv)
+            emit('status', 'closed')
             return
 
         elif recv == '--- END ---':
