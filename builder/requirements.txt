@@ -1,0 +1,2 @@
+# same versions as used in debian 12/bookworm
+tornado==6.1.0
