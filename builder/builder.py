@@ -137,7 +137,7 @@ class BuilderWebSocket(WebSocketHandler):
 
     def on_message(self, message):
         print("BuilderWebSocket.on_message", message)
-        if not message.isalnum():
+        if not message.replace('_','').isalnum():
             self.close()
             return
 

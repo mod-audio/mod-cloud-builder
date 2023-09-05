@@ -206,15 +206,16 @@ $(eval $(generic-package))
     @copy_current_request_context
     def buildlog(ws, reqid):
         if not ws.connected:
+            emit('buildlog', 'server-side build job closed unexpectedly')
+            emit('status', 'error')
             ws.close()
-            emit('status', 'closed')
             return
 
         recv = ws.recv()
-        if not ws.connected:
+        if not recv or not ws.connected:
+            emit('buildlog', 'server-side build job closed unexpectedly')
+            emit('status', 'error')
             ws.close()
-            emit('buildlog', recv)
-            emit('status', 'closed')
             return
 
         elif recv == '--- END ---':
@@ -235,7 +236,9 @@ $(eval $(generic-package))
     ws.send(resp['id'])
 
     if not ws.connected:
+        emit('buildlog', 'failed to start server-side build job')
         emit('status', 'error')
+        ws.close()
         return
 
     emit('status', 'building')
