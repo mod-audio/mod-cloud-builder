@@ -28,18 +28,18 @@ builders = [
     {
         'name': 'FAUST',
         'href': '/faust',
-        'image_url': 'https://faust.grame.fr/img/faustText.svg'
+        'image_url': '/static/faust-text.svg'
     },
     { 
         'name': 'MAX gen~',
         'href': '/maxgen',
-        'image_url': 'https://modbox.kx.studio/pedalboard/image/thumbnail.png?bundlepath=/home/falktx/.pedalboards/new_stuff-33014.pedalboard'
+        'image_url': '/static/max-8-logo.png'
     },
-    {
-        'name': 'MAX RNBO',
-        'href': '/rnbo',
-        'image_url': 'https://modbox.kx.studio/pedalboard/image/thumbnail.png?bundlepath=/home/falktx/.pedalboards/new_stuff-33014.pedalboard'
-    },
+    #{
+        #'name': 'MAX RNBO',
+        #'href': '/rnbo',
+        #'image_url': '/static/max-8-logo.png'
+    #},
 ]
 
 categories = [
@@ -288,9 +288,7 @@ $(eval $(generic-package))
 
 @app.route('/', methods=['GET'])
 def index():
-    # TODO
-    return redirect('/maxgen', code=302)
-    # return render_template('index.html', builders=builders)
+    return render_template('index.html', builders=builders)
 
 @app.route('/faust', methods=['GET'])
 def faust():
@@ -330,13 +328,17 @@ def maxgen_post():
 def plugins():
     return render_template('plugins.html')
 
+@app.route('/static/<path:path>', methods=['GET'])
+def png(path):
+    return send_from_directory('static', path)
+
 @app.route('/mod-ui/<path:path>', methods=['GET'])
 def mod_ui(path):
     return send_from_directory(MOD_UI_HTML_DIR, path)
 
-@app.route('/<path:path>.png', methods=['GET'])
-def png(path):
-    return send_from_directory(MOD_UI_HTML_DIR, path+'.png')
+#@app.route('/<path:path>.png', methods=['GET'])
+#def png(path):
+    #return send_from_directory(MOD_UI_HTML_DIR, path+'.png')
 
 # plugin store compat
 @app.route('/lv2/plugins', methods=['GET'])

@@ -25,9 +25,10 @@ ENV MOD_UI_HTML_DIR $HOME/mod-ui/html
 ENV PYTHONUNBUFFERED 1
 
 # copy builder code
-RUN mkdir $HOME/templates
+RUN mkdir $HOME/static $HOME/templates
 RUN git clone --depth=1 https://github.com/moddevices/mod-ui.git
 COPY server.py $HOME
+COPY static/*.* $HOME/static/
 COPY templates/*.html $HOME/templates/
 
 # entry point
