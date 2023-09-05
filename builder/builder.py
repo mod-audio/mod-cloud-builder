@@ -13,7 +13,7 @@ from tornado.web import Application, HTTPError, RequestHandler
 from tornado.websocket import WebSocketHandler
 
 BUILDER_PACKAGE_DIR = './plugins/package'
-TARGET_PLATFORM = 'moddwarf-new'
+TARGET_PLATFORM = os.getenv('MCB_BUILDER_TARGET', 'moddwarf-new')
 
 os.environ['MPB_SKIP_PLUGIN_COPY'] = '1'
 

@@ -13,6 +13,7 @@
 #log {
     color: #ccc;
     padding: 20px;
+    font-family: monospace;
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
@@ -25,7 +26,7 @@ $('document').ready(function() {
         if (!ioConnected || !modConnected) {
             return;
         }
-        // $('#status').html('Status: ready');
+        $('#status').html('Status: ready');
         $('#build').removeClass('disabled');
     }
 
@@ -40,37 +41,56 @@ $('document').ready(function() {
         return name;
     }
 
-    var ws = new WebSocket('ws://192.168.51.1/rplsocket');
-    ws.onmessage = function (evt) {
-        var data = JSON.parse(evt.data);
-        if (! modConnected) {
-            modConnected = data['platform'];
-            enable();
-        } else if (! data['ok']) {
+    // MOD websocket handling
+    var modws = null;
+    function modconnect() {
+        $('#status').html('Status: connecting...');
+        var oldws = modws;
+        modws = null;
+        if (oldws != null) {
+            oldws.close();
+        }
+        modConnected = false;
+        modws = new WebSocket('ws://192.168.51.1/rplsocket');
+        modws.onmessage = function (evt) {
+            if (modws != this) return;
+            var data = JSON.parse(evt.data);
+            if (! modConnected) {
+                modConnected = data['platform'];
+                enable();
+            } else if (! data['ok']) {
+                $('#status').html('Status: error');
+                $('#log').append(data['error'] + '<br>');
+            } else {
+                $('#status').html('Status: uploaded');
+                $('#log').append(data['installed'] + ' has been installed.<br>');
+            }
+        }
+        modws.onopen = function() {
+            if (modws != this) return;
+            $('#connect').addClass('disabled');
+            modws.send('');
+        };
+        modws.onclose = function () {
+            if (modws != this) return;
+            $('#connect').removeClass('disabled');
+            if (modConnected) {
+                modConnected = false;
+                $('#build').addClass('disabled');
+                $('#upload').addClass('disabled');
+                $('#status').html('Status: disconnected');
+                $('#log').append('The MOD unit has been disconnected.<br>');
+            }
+        }
+        modws.onerror = function () {
+            if (modws != this) return;
             $('#status').html('Status: error');
-            $('#log').append(data['error'] + '<br>');
-        } else {
-            $('#status').html('Status: uploaded');
-            $('#log').append(data['installed'] + ' has been installed.<br>');
+            $('#log').append('Unable to connect to MOD unit, not plugged in to USB or running < 1.13.2?<br>');
         }
-    }
-    ws.onopen = function() {
-        ws.send('');
     };
-    ws.onclose = function () {
-        if (modConnected) {
-            modConnected = false;
-            $('#build').addClass('disabled');
-            $('#upload').addClass('disabled');
-            $('#status').html('Status: disconnected');
-            $('#log').append('The MOD unit has been disconnected.<br>');
-        }
-    }
-    ws.onerror = function () {
-        $('#status').html('Status: error');
-        $('#log').append('Unable to connect to MOD unit, not plugged in to USB or running < 1.13.2?<br>');
-    }
+    modconnect();
 
+    // socket.io handling
     var proto;
     if (window.location.protocol === 'https:') {
         proto = 'wss:';
@@ -96,10 +116,11 @@ $('document').ready(function() {
     socket.on('buildfile', function(data) {
         window.plugindata = data;
         $('#status').html('Status: build complete');
-        // $('#build').removeClass('disabled');
+        $('#build').removeClass('disabled');
         $('#upload').removeClass('disabled');
     });
 
+    // form submit, the "build" action
     $('#build').addClass('disabled');
     $('#form').submit(function() {
         if (!ioConnected || !modConnected || $('#build').hasClass('disabled')) {
@@ -134,15 +155,25 @@ $('document').ready(function() {
         }
         return false;
     });
+    $('#connect').click(function() {
+        if (modConnected || $(this).hasClass('disabled')) {
+            return;
+        }
+        modconnect();
+    })
+
+    // upload function, only allowed after build
     $('#upload').addClass('disabled').click(function() {
-        if (!ioConnected || !modConnected || $(this).hasClass('disabled') || !window.plugindata) {
+        if (!ioConnected || !modConnected || $(this).hasClass('disabled') || !modws || !window.plugindata) {
             return false;
         }
         $('#status').html('Status: uploading');
         $('#log').html('');
-        ws.send(window.plugindata);
+        modws.send(window.plugindata);
         return false;
     });
+
+    // sync name and symbol as needed
     $('#name').change(function(e) {
         if (!$('#symbol').val()) {
             $('#symbol').val(symbolify($('#name').val()));
@@ -200,14 +231,15 @@ $('document').ready(function() {
                         </label>
                     </div>
                     -->
+                    <input type="button" class="btn btn-primary" value="Connect" id="connect">
                     <input type="submit" class="btn btn-primary" value="Build" id="build">
                     <input type="button" class="btn btn-primary" value="Upload" id="upload">
                 </form>
             </div>
             <div class="cloud-plugins clearfix js-cloud-plugins">
                 <div>
-                    <h2 id="status">Upload your {{ filenames }} files to begin</h2>
-                    <div id="log" class="plugins-wrapper"></div>
+                    <h2 id="status"></h2>
+                    <div id="log" class="plugins-wrapper">Upload your {{ filenames }} files to begin</div>
                 </div>
             </div>
         </div>

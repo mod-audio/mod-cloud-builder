@@ -4,6 +4,7 @@ services:
         image: mcb-builder-modduo
         environment:
           - MCB_BUILDER_PORT=8001
+          - MCB_BUILDER_TARGET=modduo-new
         ports:
           - "8001:8001"
 
@@ -11,6 +12,7 @@ services:
         image: mcb-builder-modduox
         environment:
           - MCB_BUILDER_PORT=8002
+          - MCB_BUILDER_TARGET=modduox-new
         ports:
           - "8002:8002"
 
@@ -18,6 +20,7 @@ services:
         image: mcb-builder-moddwarf
         environment:
           - MCB_BUILDER_PORT=8003
+          - MCB_BUILDER_TARGET=moddwarf-new
         ports:
           - "8003:8003"
 

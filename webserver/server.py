@@ -26,17 +26,17 @@ if not os.path.exists(MOD_UI_HTML_DIR):
 
 builders = [
     {
-        'name': 'FAUST', 
+        'name': 'FAUST',
         'href': '/faust',
         'image_url': 'https://faust.grame.fr/img/faustText.svg'
     },
     { 
-        'name': 'MAX gen~', 
+        'name': 'MAX gen~',
         'href': '/maxgen',
         'image_url': 'https://modbox.kx.studio/pedalboard/image/thumbnail.png?bundlepath=/home/falktx/.pedalboards/new_stuff-33014.pedalboard'
     },
     {
-        'name': 'MAX RNBO', 
+        'name': 'MAX RNBO',
         'href': '/rnbo',
         'image_url': 'https://modbox.kx.studio/pedalboard/image/thumbnail.png?bundlepath=/home/falktx/.pedalboards/new_stuff-33014.pedalboard'
     },
@@ -82,61 +82,72 @@ def symbolify(name):
 def build(msg):
     print('build started')
 
-    if msg.get('type', None) not in ('maxgen',):
+    buildtype = msg.get('type', None)
+    if buildtype is None or buildtype not in ('maxgen',):
         emit('buildlog', 'Invalid build target, cannot continue')
         emit('status', 'error')
         return
 
-    if msg.get('device', None) not in targets:
+    device = msg.get('device', None)
+    if device is None or device not in targets:
         emit('buildlog', 'Invalid device target, cannot continue')
         emit('status', 'error')
         return
 
-    if not msg.get('name', None):
+    name = msg.get('name', None)
+    if not name:
         emit('buildlog', 'Name is empty, cannot continue')
         emit('status', 'error')
         return
 
-    if not msg.get('symbol', None):
+    symbol = msg.get('symbol', None)
+    if not symbol:
         emit('buildlog', 'Symbol is empty, cannot continue')
         emit('status', 'error')
         return
 
-    if not msg.get('files', None):
+    files = msg.get('files', None)
+    if not files:
         emit('buildlog', 'No files provided, cannot continue')
         emit('status', 'error')
         return
 
-    category = msg.get('category', None) or '(none)'
+    brand = msg.get('brand', None)
+    if brand is None:
+        emit('buildlog', 'Symbol is empty, cannot continue')
+        emit('status', 'error')
+        return
 
-    if category not in categories:
+    category = msg.get('category', None)
+    if category is None or category not in categories:
         emit('buildlog', 'Invalid category, cannot continue')
         emit('status', 'error')
         return
 
-    @copy_current_request_context
-    def createmk(msg, symbol):
-        if msg['type'] == 'maxgen':
-            if 'gen_exported.cpp' not in msg['files']:
-                emit('buildlog', 'The file gen_exported.cpp is missing, cannot continue')
-                emit('status', 'error')
-                return None
+    symbol = symbolify(symbol)
 
-            if 'gen_exported.h' not in msg['files']:
-                emit('buildlog', 'The file gen_exported.h is missing, cannot continue')
-                emit('status', 'error')
-                return None
+    if category == '(none)':
+        category = 'lv2:Plugin'
+    else:
+        category = f"lv2:{category}Plugin"
 
-            name = msg['name']
-            brand = msg['brand']
-            bundle = f"max-gen-{symbol}"
-            uri = f"urn:maxgen:{symbol}"
-            if not brand:
-                brand = 'max-gen'
+    if buildtype == 'maxgen':
+        if 'gen_exported.cpp' not in files:
+            emit('buildlog', 'The file gen_exported.cpp is missing, cannot continue')
+            emit('status', 'error')
+            return
 
-            # TODO use brand, symbol/uri and category
-            return f"""
-MAX_GEN_SKELETON_VERSION = 7b93c46d1b689d93b405256d86de31fb380b4966
+        if 'gen_exported.h' not in files:
+            emit('buildlog', 'The file gen_exported.h is missing, cannot continue')
+            emit('status', 'error')
+            return
+
+        if not brand:
+            brand = 'MAX gen~'
+
+        bundle = f"max-gen-{symbol}"
+        package = f"""
+MAX_GEN_SKELETON_VERSION = b236792fa2bd4c3173c7182afe3e358a77e58df1
 MAX_GEN_SKELETON_SITE = https://github.com/moddevices/max-gen-skeleton.git
 MAX_GEN_SKELETON_SITE_METHOD = git
 MAX_GEN_SKELETON_BUNDLES = {bundle}.lv2
@@ -148,7 +159,13 @@ MAX_GEN_SKELETON_PRE_DOWNLOAD_HOOKS += MOD_PLUGIN_BUILDER_DOWNLOAD_WITH_SUBMODUL
 define MAX_GEN_SKELETON_CONFIGURE_CMDS
 	cp $($(PKG)_PKGDIR)/gen_exported.cpp $(@D)/plugin/
 	cp $($(PKG)_PKGDIR)/gen_exported.h $(@D)/plugin/
-	echo {name} | $(@D)/setup.sh
+	env MAX_GEN_AUTOMATED=1 \
+		MAX_GEN_NAME="{name}" \
+		MAX_GEN_BRAND="{brand}" \
+		MAX_GEN_SYMBOL="{symbol}" \
+		MAX_GEN_LV2_CATEGORY="{category}" \
+		MAX_GEN_DESCRIPTION="MAX gen~ based plugin, automatically generated via mod-cloud-builder" \
+		$(@D)/setup.sh
 endef
 
 define MAX_GEN_SKELETON_BUILD_CMDS
@@ -161,19 +178,14 @@ endef
 
 $(eval $(generic-package))
 """
-        return None
-
-    name = msg['name']
-    brand = msg.get('brand', None)
-    symbol = symbolify(msg['symbol'])
-    package = createmk(msg, symbol)
-
-    if package is None:
+    else:
+        emit('buildlog', 'Requested build target is not yet implemented, cannot continue')
+        emit('status', 'error')
         return
 
     reqdata = json.dumps({
-      'name': msg['name'],
-      'files': msg['files'],
+      'name': name,
+      'files': files,
       'package': package,
     }).encode('utf-8')
 
@@ -181,7 +193,7 @@ $(eval $(generic-package))
       'Content-Type': 'application/json; charset=UTF-8',
     }
 
-    targethost = targets[msg['device']]
+    targethost = targets[device]
 
     req = urlopen(Request(f'http://{targethost}/', data=reqdata, headers=reqheaders))
     resp = json.loads(req.read().decode('utf-8'))
