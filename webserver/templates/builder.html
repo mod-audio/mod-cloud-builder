@@ -1,19 +1,40 @@
 {% extends 'base.html' %}
 {% block content %}
 <style type="text/css" media="screen">
+#cloud-plugins-library,
+#cloud-plugins-library .filter,
+#cloud-plugins-library .cloud-plugins,
+#pedalboards-library .pedalboards {
+    bottom: 0;
+}
 #cloud-plugins-library .filter {
-  left: none;
-  right: none;
-  width: calc(350px - 20px);
-  margin: 0 10px;
+    left: 0;
+    right: 0;
+    width: calc(350px - 20px);
+    margin: 0 10px;
 }
 .cloud-plugins {
-  left: 350px;
+    left: 350px;
+}
+#status {
+    position: fixed;
+    top: 45px;
+    margin: 0;
+    padding: 14px;
+    width: 100%;
+    height: 50px;
+    background: #2a2a2a;
 }
 #log {
     color: #ccc;
     padding: 20px;
-    font-family: monospace;
+    margin-top: 50px;
+    font-family: monospace !important;
+    height: calc(100vh - 100px);
+    overflow: scroll;
+}
+#log::selection {
+    background: #883996;
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
@@ -111,7 +132,7 @@ $('document').ready(function() {
     });
     socket.on('buildlog', function(msg) {
         $('#log').append(msg + '<br>');
-        $('#log').parent().animate({ scrollTop: $('#log')[0].scrollHeight }, 200);
+        $('#log').animate({ scrollTop: $('#log')[0].scrollHeight }, 200);
     });
     socket.on('buildfile', function(data) {
         window.plugindata = data;
