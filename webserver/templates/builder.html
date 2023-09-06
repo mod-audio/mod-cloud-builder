@@ -240,8 +240,8 @@ $('document').ready(function() {
                         <input type="text" class="form-control" name="brand" value="{{ brand }}" id="brand" placeholder="Plugin brand" autocomplete="on">
                     </div>
                     <div class="form-group">
-                        <label for="symbol" class="form-label">Plugin id/symbol</label>
-                        <input type="text" class="form-control" name="symbol" value="{{ symbol }}" id="symbol" placeholder="Plugin id/symbol" autocomplete="on" required>
+                        <label for="symbol" class="form-label">Plugin uid/symbol</label>
+                        <input type="text" class="form-control" name="symbol" value="{{ symbol }}" id="symbol" placeholder="Plugin uid/symbol" autocomplete="on" required>
                     </div>
                     <div class="form-group">
                         <label for="category" class="form-label">Plugin category</label>
@@ -269,7 +269,18 @@ $('document').ready(function() {
             <div class="cloud-plugins clearfix js-cloud-plugins">
                 <div>
                     <h2 id="status"></h2>
-                    <div id="log" class="plugins-wrapper">Upload your {{ filenames }} files to begin</div>
+                    <div id="log" class="plugins-wrapper">
+                        <noscript>
+                        Please activate JavaScript on this page to begin, the builder does not work without it.
+                        <br><br>
+                        </noscript>
+                        Welcome to the MOD Cloud Builder for {{ buildername }}.<br>
+                        <br>
+                        Connect your MOD unit via USB, upload your {{ filenames }} files and give the plugin a name.<br>
+                        When all is ready, press the "Build" button and wait for it to complete, then press the "Upload" button to push the plugin build into your unit.<br>
+                        <br>
+                        Make sure you are running the latest 1.13.2 release, which is needed for receiving builds from this service.
+                    </div>
                 </div>
             </div>
         </div>

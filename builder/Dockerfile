@@ -7,8 +7,8 @@ WORKDIR /root/mod-plugin-builder
 # update and upgrade system
 RUN apt-get update && apt-get upgrade -qqy && apt-get clean
 
-# install packages for webserver
-RUN apt-get install python3-tornado
+# install packages for pip and tornado
+RUN apt-get install -qqy python3-pip python3-tornado && apt-get clean
 
 # install faustpp
 RUN echo "deb https://ppa.launchpadcontent.net/kxstudio-debian/toolchain/ubuntu focal main" | tee /etc/apt/sources.list.d/kxstudio.list

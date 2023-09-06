@@ -35,6 +35,11 @@ builders = [
         'href': '/maxgen',
         'image_url': '/static/max-8-logo.png'
     },
+    {
+        'name': 'Pure Data',
+        'href': '/puredata',
+        'image_url': '/static/puredata-logo.svg'
+    },
     #{
         #'name': 'MAX RNBO',
         #'href': '/rnbo',
@@ -83,7 +88,7 @@ def build(msg):
     print('build started')
 
     buildtype = msg.get('type', None)
-    if buildtype is None or buildtype not in ('faust', 'maxgen'):
+    if buildtype is None or buildtype not in ('faust', 'maxgen', 'puredata'):
         emit('buildlog', 'Invalid build target, cannot continue')
         emit('status', 'error')
         return
@@ -220,6 +225,49 @@ endef
 
 $(eval $(generic-package))
 """
+
+    elif buildtype == 'puredata':
+        if len(files.keys()) != 1:
+            emit('buildlog', 'More than 1 file uploaded, this is not allowed, please upload a single file')
+            emit('status', 'error')
+            return
+
+        if not brand:
+            brand = 'Pure Data'
+
+        bundle = f"puredata-{symbol}"
+        package = f"""
+PURE_DATA_SKELETON_VERSION = 4fbaa17f0e54f92ec3502b3e0033676469dde390
+PURE_DATA_SKELETON_SITE = https://github.com/Wasted-Audio/hvcc.git
+PURE_DATA_SKELETON_SITE_METHOD = git
+PURE_DATA_SKELETON_BUNDLES = {bundle}.lv2
+
+PURE_DATA_SKELETON_TARGET_MAKE = $(TARGET_MAKE_ENV) $(TARGET_CONFIGURE_OPTS) $(MAKE) PREFIX=/usr NOOPT=true -C $(@D)
+
+PURE_DATA_SKELETON_PRE_DOWNLOAD_HOOKS += MOD_PLUGIN_BUILDER_DOWNLOAD_WITH_SUBMODULES
+
+define PURE_DATA_SKELETON_CONFIGURE_CMDS
+	# install deps
+	pip3 install -e $(@D) --break-system-packages
+	git clone https://github.com/DISTRHO/DPF.git --depth=1 -b develop $(@D)/dpf
+	# create plugin files
+	mkdir $(@D)/plugin
+	cp $($(PKG)_PKGDIR)/*.pd $(@D)/plugin/plugin.pd
+	echo '{{"name":"{name}","dpf":{{"version":"0, 0, 0","license":"ISC","plugin_uri":"urn:puredata:{symbol}","plugin_formats":["lv2_sep"],"lv2_info":"{category}","midi_input":0,"midi_output":0}}}}' > $(@D)/plugin/plugin.json
+	hvcc $(@D)/plugin/plugin.pd -m $(@D)/plugin/plugin.json -n "{name}" -g dpf -o $(@D)
+endef
+
+define PURE_DATA_SKELETON_BUILD_CMDS
+	$(PURE_DATA_SKELETON_TARGET_MAKE)
+endef
+
+define PURE_DATA_SKELETON_INSTALL_TARGET_CMDS
+	mv $(@D)/bin/*.lv2 $($(PKG)_PKGDIR)/{bundle}.lv2
+endef
+
+$(eval $(generic-package))
+"""
+
     else:
         emit('buildlog', 'Requested build target is not yet implemented, cannot continue')
         emit('status', 'error')
@@ -322,6 +370,23 @@ def maxgen():
 
 @app.route('/maxgen', methods=['POST'])
 def maxgen_post():
+    return Response(status=204)
+
+@app.route('/puredata', methods=['GET'])
+def puredata():
+    return render_template('builder.html',
+                           categories=categories,
+                           buildername='Pure Data',
+                           buildertype='puredata',
+                           name='',
+                           brand='',
+                           symbol='',
+                           category='(none)',
+                           fileexts='.pd',
+                           filenames='puredata patch')
+
+@app.route('/puredata', methods=['POST'])
+def puredata_post():
     return Response(status=204)
 
 @app.route('/plugins', methods=['GET'])
