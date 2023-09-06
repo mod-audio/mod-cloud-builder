@@ -19,6 +19,10 @@ RUN apt-get update && apt-get upgrade -qqy && apt-get install -qqy faustpp && ap
 # setup for this instance
 ENV PYTHONUNBUFFERED 1
 
+# keep a known working version of dpf around, for faster builds
+RUN git clone https://github.com/DISTRHO/DPF.git /root/dpf
+RUN git -C /root/dpf checkout 61d38eb638449647fb8395a35c5b8dab7e981ba7
+
 # copy builder code
 COPY builder.py /root
 

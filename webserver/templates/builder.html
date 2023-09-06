@@ -106,7 +106,7 @@ $('document').ready(function() {
         modws.onerror = function () {
             if (modws != this) return;
             $('#status').html('Status: error');
-            $('#log').append('<br>WARNING: Unable to connect to MOD unit, not plugged in to USB or running < 1.13.2?<br>');
+            $('#log').append('<br>WARNING: Unable to connect to MOD unit, not plugged in to USB or running < 1.13.3?<br>');
         }
     };
     modconnect();
@@ -138,7 +138,7 @@ $('document').ready(function() {
     });
     socket.on('buildlog', function(msg) {
         $('#log').append(msg + '<br>');
-        $('#log').animate({ scrollTop: $('#log')[0].scrollHeight }, 200);
+        $('#log').animate({ scrollTop: $('#log')[0].scrollHeight }, 1);
     });
     socket.on('buildfile', function(data) {
         window.plugindata = data;
@@ -279,7 +279,7 @@ $('document').ready(function() {
                         Connect your MOD unit via USB, upload your {{ filenames }} files and give the plugin a name.<br>
                         When all is ready, press the "Build" button and wait for it to complete, then press the "Upload" button to push the plugin build into your unit.<br>
                         <br>
-                        Make sure you are running the latest 1.13.2 release, which is needed for receiving builds from this service.<br>
+                        Make sure you are running the latest 1.13.3 release, which is needed for receiving builds from this service.<br>
                         <br>
                     </div>
                 </div>

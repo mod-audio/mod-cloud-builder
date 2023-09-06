@@ -36,9 +36,9 @@ builders = [
         'image_url': '/static/max-8-logo.png'
     },
     {
-        'name': 'Pure Data',
-        'href': '/puredata',
-        'image_url': '/static/puredata-logo.svg'
+        'name': 'Pure Data (hvcc)',
+        'href': '/hvcc',
+        'image_url': '/static/hvcc-logo.png'
     },
     #{
         #'name': 'MAX RNBO',
@@ -88,7 +88,7 @@ def build(msg):
     print('build started')
 
     buildtype = msg.get('type', None)
-    if buildtype is None or buildtype not in ('faust', 'maxgen', 'puredata'):
+    if buildtype is None or buildtype not in ('faust', 'hvcc', 'maxgen'):
         emit('buildlog', 'Invalid build target, cannot continue')
         emit('status', 'error')
         return
@@ -154,9 +154,9 @@ FAUST_SKELETON_BUNDLES = {bundle}.lv2
 
 FAUST_SKELETON_TARGET_MAKE = $(TARGET_MAKE_ENV) $(TARGET_CONFIGURE_OPTS) $(MAKE) PREFIX=/usr NOOPT=true -C $(@D)
 
-FAUST_SKELETON_PRE_DOWNLOAD_HOOKS += MOD_PLUGIN_BUILDER_DOWNLOAD_WITH_SUBMODULES
-
 define FAUST_SKELETON_CONFIGURE_CMDS
+	rmdir $(@D)/source/dpf
+	ln -s /root/dpf $(@D)/source/dpf
 	cp $($(PKG)_PKGDIR)/*.dsp $(@D)/plugin/
 	env FAUST_AUTOMATED=1 \
 		FAUST_NAME="{name}" \
@@ -201,9 +201,9 @@ MAX_GEN_SKELETON_BUNDLES = {bundle}.lv2
 
 MAX_GEN_SKELETON_TARGET_MAKE = $(TARGET_MAKE_ENV) $(TARGET_CONFIGURE_OPTS) $(MAKE) PREFIX=/usr NOOPT=true -C $(@D)
 
-MAX_GEN_SKELETON_PRE_DOWNLOAD_HOOKS += MOD_PLUGIN_BUILDER_DOWNLOAD_WITH_SUBMODULES
-
 define MAX_GEN_SKELETON_CONFIGURE_CMDS
+	rmdir $(@D)/source/dpf
+	ln -s /root/dpf $(@D)/source/dpf
 	cp $($(PKG)_PKGDIR)/gen_exported.cpp $(@D)/plugin/
 	cp $($(PKG)_PKGDIR)/gen_exported.h $(@D)/plugin/
 	env MAX_GEN_AUTOMATED=1 \
@@ -226,7 +226,7 @@ endef
 $(eval $(generic-package))
 """
 
-    elif buildtype == 'puredata':
+    elif buildtype == 'hvcc':
         if len(files.keys()) != 1:
             emit('buildlog', 'More than 1 file uploaded, this is not allowed, please upload a single file')
             emit('status', 'error')
@@ -235,7 +235,7 @@ $(eval $(generic-package))
         if not brand:
             brand = 'Pure Data'
 
-        bundle = f"puredata-{symbol}"
+        bundle = f"hvcc-{symbol}"
         package = f"""
 PURE_DATA_SKELETON_VERSION = 4fbaa17f0e54f92ec3502b3e0033676469dde390
 PURE_DATA_SKELETON_SITE = https://github.com/Wasted-Audio/hvcc.git
@@ -244,16 +244,29 @@ PURE_DATA_SKELETON_BUNDLES = {bundle}.lv2
 
 PURE_DATA_SKELETON_TARGET_MAKE = $(TARGET_MAKE_ENV) $(TARGET_CONFIGURE_OPTS) $(MAKE) PREFIX=/usr NOOPT=true -C $(@D)
 
-PURE_DATA_SKELETON_PRE_DOWNLOAD_HOOKS += MOD_PLUGIN_BUILDER_DOWNLOAD_WITH_SUBMODULES
-
 define PURE_DATA_SKELETON_CONFIGURE_CMDS
-	# install deps
+	# install hvcc
 	pip3 install -e $(@D) --break-system-packages
-	git clone https://github.com/DISTRHO/DPF.git --depth=1 -b develop $(@D)/dpf
+	# place symlink to dpf (known working version)
+	ln -s /root/dpf $(@D)/dpf
 	# create plugin files
 	mkdir $(@D)/plugin
 	cp $($(PKG)_PKGDIR)/*.pd $(@D)/plugin/plugin.pd
-	echo '{{"name":"{name}","dpf":{{"version":"0, 0, 0","license":"ISC","plugin_uri":"urn:puredata:{symbol}","plugin_formats":["lv2_sep"],"lv2_info":"{category}","midi_input":0,"midi_output":0}}}}' > $(@D)/plugin/plugin.json
+	echo '{{\
+    "name": "{name}",\
+    "dpf": {{\
+        "description": "Pure Data (hvcc) based plugin, automatically generated via mod-cloud-builder",\
+        "homepage": "https://github.com/Wasted-Audio/hvcc",\
+        "license": "ISC",\
+        "lv2_info": "{category}",\
+        "maker": "{brand}",\
+        "midi_input": 0,\
+        "midi_output": 0,\
+        "plugin_uri": "urn:hvcc:{symbol}",\
+        "plugin_formats ":["lv2_sep"],\
+        "version": "0, 0, 0"\
+    }}\
+}}' > $(@D)/plugin/plugin.json
 	hvcc $(@D)/plugin/plugin.pd -m $(@D)/plugin/plugin.json -n "{name}" -g dpf -o $(@D)
 endef
 
@@ -372,12 +385,12 @@ def maxgen():
 def maxgen_post():
     return Response(status=204)
 
-@app.route('/puredata', methods=['GET'])
-def puredata():
+@app.route('/hvcc', methods=['GET'])
+def hvcc():
     return render_template('builder.html',
                            categories=categories,
-                           buildername='Pure Data',
-                           buildertype='puredata',
+                           buildername='Pure Data / hvcc',
+                           buildertype='hvcc',
                            name='',
                            brand='',
                            symbol='',
@@ -385,9 +398,13 @@ def puredata():
                            fileexts='.pd',
                            filenames='puredata patch')
 
-@app.route('/puredata', methods=['POST'])
-def puredata_post():
+@app.route('/hvcc', methods=['POST'])
+def hvcc_post():
     return Response(status=204)
+
+@app.route('/puredata', methods=['GET'])
+def puredata():
+    return redirect('/hvcc', code=302)
 
 @app.route('/plugins', methods=['GET'])
 def plugins():
