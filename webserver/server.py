@@ -13,6 +13,7 @@ from flask import Flask, Response, copy_current_request_context, redirect, reque
 from flask_socketio import SocketIO, emit, send
 from gevent import spawn
 from re import sub as re_sub
+from unicodedata import normalize
 from urllib.request import Request, urlopen
 from websocket import create_connection
 
@@ -129,6 +130,8 @@ def build(msg):
         emit('status', 'error')
         return
 
+    name = normalize('NFKD', name).encode('ascii', 'ignore').decode('ascii', 'ignore').replace('"', '')
+    brand = normalize('NFKD', brand).encode('ascii', 'ignore').decode('ascii', 'ignore').replace('"', '')
     symbol = symbolify(symbol)
 
     if category == '(none)':
