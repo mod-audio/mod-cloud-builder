@@ -85,6 +85,10 @@ def sanitize(name):
     name = name.replace('$', '')
     name = name.replace('`', '')
     name = name.replace('\\', '')
+    if not name:
+        return None
+    if name[0].isalpha():
+        name = '_' + name
     return name
 
 def symbolify(name):
@@ -117,6 +121,12 @@ def build(msg):
         emit('status', 'error')
         return
 
+    name = sanitize(name)
+    if not name:
+        emit('buildlog', 'Invalid name, cannot continue')
+        emit('status', 'error')
+        return
+
     symbol = msg.get('symbol', None)
     if not symbol:
         emit('buildlog', 'Symbol is empty, cannot continue')
@@ -135,14 +145,18 @@ def build(msg):
         emit('status', 'error')
         return
 
+    brand = sanitize(brand)
+    if not brand:
+        emit('buildlog', 'Invalid brand, cannot continue')
+        emit('status', 'error')
+        return
+
     category = msg.get('category', None)
     if category is None or category not in categories:
         emit('buildlog', 'Invalid category, cannot continue')
         emit('status', 'error')
         return
 
-    name = sanitize(name)
-    brand = sanitize(brand)
     symbol = symbolify(symbol)
 
     if category == '(none)':
@@ -161,7 +175,7 @@ def build(msg):
 
         bundle = f"faust-{symbol}"
         package = f"""
-FAUST_SKELETON_VERSION = 2ce09b6ac8dffbe969d05d5e9d27b88e13b8a426
+FAUST_SKELETON_VERSION = febaa50e4b1fcb0ec5ecfac1810c397ba70cf841
 FAUST_SKELETON_SITE = https://github.com/moddevices/faust-skeleton.git
 FAUST_SKELETON_SITE_METHOD = git
 FAUST_SKELETON_BUNDLES = {bundle}.lv2
