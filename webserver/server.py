@@ -77,6 +77,8 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 def sanitize(name):
+    if not name:
+        return None
     name = normalize('NFKD', name).encode('ascii', 'ignore').decode('ascii', 'ignore')
     name = name.replace('\r', '')
     name = name.replace('\n', '')
@@ -146,10 +148,6 @@ def build(msg):
         return
 
     brand = sanitize(brand)
-    if not brand:
-        emit('buildlog', 'Invalid brand, cannot continue')
-        emit('status', 'error')
-        return
 
     category = msg.get('category', None)
     if category is None or category not in categories:
