@@ -13,7 +13,6 @@ from flask import Flask, Response, copy_current_request_context, redirect, reque
 from flask_socketio import SocketIO, emit, send
 from gevent import spawn
 from re import sub as re_sub
-from shlex import quote as shlex_quote
 from unicodedata import normalize
 from urllib.request import Request, urlopen
 from websocket import create_connection
@@ -78,7 +77,15 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 def sanitize(name):
-    return shlex_quote(normalize('NFKD', name).encode('ascii', 'ignore').decode('ascii', 'ignore'))
+    name = normalize('NFKD', name).encode('ascii', 'ignore').decode('ascii', 'ignore')
+    name = name.replace('\r', '')
+    name = name.replace('\n', '')
+    name = name.replace('\t', ' ')
+    name = name.replace('"', '')
+    name = name.replace('$', '')
+    name = name.replace('`', '')
+    name = name.replace('\\', '')
+    return name
 
 def symbolify(name):
     if len(name) == 0:
