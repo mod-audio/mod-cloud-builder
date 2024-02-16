@@ -31,7 +31,7 @@ builders = [
         'href': '/faust',
         'image_url': '/static/faust-text.svg'
     },
-    { 
+    {
         'name': 'MAX gen~',
         'href': '/maxgen',
         'image_url': '/static/max-8-logo.png'
@@ -263,7 +263,7 @@ $(eval $(generic-package))
 
         bundle = f"hvcc-{symbol}"
         package = f"""
-PURE_DATA_SKELETON_VERSION = 4fbaa17f0e54f92ec3502b3e0033676469dde390
+PURE_DATA_SKELETON_VERSION = 948e2139676734e5b0367819374922a8afa851b6
 PURE_DATA_SKELETON_SITE = https://github.com/Wasted-Audio/hvcc.git
 PURE_DATA_SKELETON_SITE_METHOD = git
 PURE_DATA_SKELETON_BUNDLES = {bundle}.lv2
