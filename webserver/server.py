@@ -157,6 +157,10 @@ def build(msg):
 
     symbol = symbolify(symbol)
 
+    if buildtype == 'hvcc':
+        midi_in = msg.get('midi_in')
+        midi_out = msg.get('midi_out')
+
     if category == '(none)':
         category = 'lv2:Plugin'
     else:
@@ -286,8 +290,8 @@ define PURE_DATA_SKELETON_CONFIGURE_CMDS
         "license": "ISC",\
         "lv2_info": "{category}",\
         "maker": "{brand}",\
-        "midi_input": 0,\
-        "midi_output": 0,\
+        "midi_input": {1 if midi_in else 0},\
+        "midi_output": {1 if midi_out else 0},\
         "plugin_uri": "urn:hvcc:{symbol}",\
         "plugin_formats ":["lv2_sep"],\
         "version": "0, 0, 0"\

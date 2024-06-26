@@ -175,6 +175,8 @@ $('document').ready(function() {
             brand: $('#brand').val(),
             symbol: $('#symbol').val(),
             category: $('#category').val(),
+            midi_in: $('#midi_in').is(":checked"),
+            midi_out: $('#midi_out').is(":checked")
         };
         var numFilesRead = 0;
         for (var i=0; i<files.length; ++i) {
@@ -253,6 +255,16 @@ $('document').ready(function() {
                             {% endfor %}
                         </select>
                     </div>
+                {% if buildertype == 'hvcc' %}
+                    <div class="mb-3 form-group form-check">
+                        <label for="midi_in" class="form-check-label">Midi Input</label>
+                        <input class="form-check-input" type="checkbox" name="midi_in" value="" id="midi_in">
+                    </div>
+                    <div class="mb-3 form-group form-check">
+                        <label for="midi_out" class="form-check-label">Midi Output</label>
+                        <input class="form-check-input" type="checkbox" name="midi_out" value="" id="midi_out">
+                    </div>
+                {% endif %}
                     <!--
                     <div class="mb-3 form-group form-check">
                         <input class="form-check-input" type="checkbox" value="" id="save-settings">
