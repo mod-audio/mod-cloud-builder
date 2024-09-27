@@ -231,6 +231,7 @@ $('document').ready(function() {
                         <label for="files" class="form-label">Plugin files</label>
                         <input type="file" class="form-control" name="files[]" id="files" accept="{{ fileexts }}" multiple required>
                     </div>
+                    {% if buildertype != 'buildroot' %}
                     <div class="form-group">
                         <label for="name" class="form-label">Plugin name</label>
                         <input type="text" class="form-control" name="name" value="{{ name }}" id="name" placeholder="Plugin name" autocomplete="on" required>
@@ -253,6 +254,7 @@ $('document').ready(function() {
                             {% endfor %}
                         </select>
                     </div>
+                    {% endif %}
                     <!--
                     <div class="mb-3 form-group form-check">
                         <input class="form-check-input" type="checkbox" value="" id="save-settings">

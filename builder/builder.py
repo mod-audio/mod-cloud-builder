@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # MOD Cloud Builder
-# SPDX-FileCopyrightText: 2023 MOD Audio UG
+# SPDX-FileCopyrightText: 2023-2024 MOD Audio UG
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 import os
@@ -14,6 +14,7 @@ from tornado.websocket import WebSocketHandler
 
 BUILDER_PACKAGE_DIR = './plugins/package'
 TARGET_PLATFORM = os.getenv('MCB_BUILDER_TARGET', 'moddwarf-new')
+WORKDIR = os.getenv('WORKDIR', os.path.expanduser('~/mod-workdir'))
 
 os.environ['MPB_SKIP_PLUGIN_COPY'] = '1'
 
@@ -28,7 +29,9 @@ class Builder(object):
 
     async def build(self, write_message_callback):
         print("Builder.build", write_message_callback)
-        self.proc = await create_subprocess_shell(f'./build {TARGET_PLATFORM} {self.projname}', stdout=PIPE, stderr=STDOUT)
+        self.proc = await create_subprocess_shell(f'./build {TARGET_PLATFORM} {self.projname}',
+                                                  stdout=PIPE,
+                                                  stderr=STDOUT)
         while self.proc is not None:
             stdout = await self.proc.stdout.readline()
             if self.proc is None:
@@ -68,36 +71,31 @@ class BuilderRequest(RequestHandler):
         else:
             raise HTTPError(501, 'Content-Type != "application/json"')
 
-    def done(self, data):
-        self.set_header('Content-Type', 'application/json; charset=UTF-8')
-        self.write(json.dumps(data))
-        self.finish()
-
     def post(self):
         # validate package contents
         package = self.jsonrequest.get('package', None)
         if package is None:
-            self.done({ 'ok': False, 'error': "Missing package" })
+            self.postdone({ 'ok': False, 'error': "Missing package" })
             return
 
         files = self.jsonrequest.get('files', None)
         if not files:
-            self.done({ 'ok': False, 'error': "Missing files" })
+            self.postdone({ 'ok': False, 'error': "Missing files" })
             return
 
         # get package name
-        pkgname = package.split('_VERSION = ',1)[0].split('\n',1)[-1].split('#',1)[0]
+        pkgname = package.split('_VERSION = ',1)[0].split('\n',1)[-1].rsplit('\n')[-1].split('#',1)[0].strip()
         if not pkgname or not pkgname.replace('_','').isalnum() or pkgname[0].isdigit():
-            self.done({ 'ok': False, 'error': "Invalid package version" })
+            self.postdone({ 'ok': False, 'error': f"Invalid package version" })
             return
 
         # get package bundle
-        pkgbundle = package.split('_BUNDLES = ',1)[1].split('\n',1)[0].split('#',1)[0].strip()
+        pkgbundle = package.split('_BUNDLES = ',1)[1].split('\n',1)[0].rsplit('\n')[-1].split('#',1)[0].strip()
         if not pkgbundle:
-            self.done({ 'ok': False, 'error': "Invalid package bundle name" })
+            self.postdone({ 'ok': False, 'error': "Invalid package bundle name" })
             return
         if ' ' in pkgbundle:
-            self.done({ 'ok': False, 'error': "Multiple bundles per package is not supported" })
+            self.postdone({ 'ok': False, 'error': "Multiple bundles per package is not supported" })
             return
 
         # prepare for build
@@ -108,14 +106,34 @@ class BuilderRequest(RequestHandler):
             fh.write(package.replace(f'{pkgname}_', f'{builder.projname.upper()}_'))
 
         for filename, content in files.items():
+            if filename.endswith('.mk'):
+                continue
             with open(os.path.join(BUILDER_PACKAGE_DIR, builder.projname, filename), 'w') as fh:
                 fh.write(content)
 
-        self.done({ 'ok': True, 'id': builder.projname })
+        self.postdone({ 'ok': True, 'id': builder.projname })
+
+    def postdone(self, data):
+        self.set_header('Content-Type', 'application/json; charset=UTF-8')
+        self.write(json.dumps(data))
+        self.finish()
 
     async def get(self):
         builder = Builder.get(self.jsonrequest['id'])
-        folder = os.path.join(BUILDER_PACKAGE_DIR, builder.projname)
+        folders = (
+            os.path.join(BUILDER_PACKAGE_DIR, builder.projname),
+            f"{WORKDIR}/{TARGET_PLATFORM}/target/usr/lib/lv2",
+        )
+
+        for folder in folders:
+            if os.path.exists(os.path.join(folder, builder.pkgbundle)):
+                break
+        else:
+            # No bundle found post-build
+            self.write('')
+            self.finish()
+            return
+
         proc = await create_subprocess_shell(f'tar -C {folder} -chz {builder.pkgbundle} -O', stdout=PIPE)
 
         while proc is not None:

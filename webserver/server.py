@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # MOD Cloud Builder
-# SPDX-FileCopyrightText: 2023 MOD Audio UG
+# SPDX-FileCopyrightText: 2023-2024 MOD Audio UG
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # imports
@@ -106,7 +106,7 @@ def build(msg):
     print('build started')
 
     buildtype = msg.get('type', None)
-    if buildtype is None or buildtype not in ('faust', 'hvcc', 'maxgen'):
+    if buildtype is None or buildtype not in ('buildroot', 'faust', 'hvcc', 'maxgen'):
         emit('buildlog', 'Invalid build target, cannot continue')
         emit('status', 'error')
         return
@@ -117,23 +117,48 @@ def build(msg):
         emit('status', 'error')
         return
 
-    name = msg.get('name', None)
-    if not name:
-        emit('buildlog', 'Name is empty, cannot continue')
-        emit('status', 'error')
-        return
+    if buildtype == 'buildroot':
+        name = brand = symbol = category = ''
 
-    name = sanitize(name)
-    if not name:
-        emit('buildlog', 'Invalid name, cannot continue')
-        emit('status', 'error')
-        return
+    else:
+        name = msg.get('name', None)
+        if not name:
+            emit('buildlog', 'Name is empty, cannot continue')
+            emit('status', 'error')
+            return
 
-    symbol = msg.get('symbol', None)
-    if not symbol:
-        emit('buildlog', 'Symbol is empty, cannot continue')
-        emit('status', 'error')
-        return
+        name = sanitize(name)
+        if not name:
+            emit('buildlog', 'Invalid name, cannot continue')
+            emit('status', 'error')
+            return
+
+        brand = msg.get('brand', None)
+        if brand is None:
+            emit('buildlog', 'Brand is empty, cannot continue')
+            emit('status', 'error')
+            return
+
+        brand = sanitize(brand)
+
+        symbol = msg.get('symbol', None)
+        if not symbol:
+            emit('buildlog', 'Symbol is empty, cannot continue')
+            emit('status', 'error')
+            return
+
+        symbol = symbolify(symbol)
+
+        category = msg.get('category', None)
+        if category is None or category not in categories:
+            emit('buildlog', 'Invalid category, cannot continue')
+            emit('status', 'error')
+            return
+
+        if category == '(none)':
+            category = 'lv2:Plugin'
+        else:
+            category = f"lv2:{category}Plugin"
 
     files = msg.get('files', None)
     if not files:
@@ -141,28 +166,36 @@ def build(msg):
         emit('status', 'error')
         return
 
-    brand = msg.get('brand', None)
-    if brand is None:
-        emit('buildlog', 'Symbol is empty, cannot continue')
-        emit('status', 'error')
-        return
+    if buildtype == 'buildroot':
+        if len(files.keys()) != 1:
+            emit('buildlog', 'More than 1 file uploaded, this is not allowed, please upload a single file')
+            emit('status', 'error')
+            return
 
-    brand = sanitize(brand)
+        filename = tuple(files.keys())[0]
 
-    category = msg.get('category', None)
-    if category is None or category not in categories:
-        emit('buildlog', 'Invalid category, cannot continue')
-        emit('status', 'error')
-        return
+        if not filename.endswith('.mk'):
+            emit('buildlog', 'Wrong file extension, please upload a buildroot makefile with .mk extension')
+            emit('status', 'error')
+            return
 
-    symbol = symbolify(symbol)
+        bundle = filename[:-3]
 
-    if category == '(none)':
-        category = 'lv2:Plugin'
-    else:
-        category = f"lv2:{category}Plugin"
+        if not bundle or bundle[0].isdigit():
+            emit('buildlog', 'Wrong or incorrect file, stop')
+            emit('status', 'error')
+            return
 
-    if buildtype == 'faust':
+        for c in bundle:
+            if (c >= 'a' and c <= 'z') or (c >= '0' and c <= '9') or c == '-':
+                continue
+            emit('buildlog', 'Filename contains invalid character(s)')
+            emit('status', 'error')
+            return
+
+        package = files[filename]
+
+    elif buildtype == 'faust':
         if len(files.keys()) != 1:
             emit('buildlog', 'More than 1 file uploaded, this is not allowed, please upload a single file')
             emit('status', 'error')
@@ -324,7 +357,7 @@ $(eval $(generic-package))
 
     targethost = targets[device]
 
-    req = urlopen(Request(f'http://{targethost}/', data=reqdata, headers=reqheaders))
+    req = urlopen(Request(f'http://{targethost}/', data=reqdata, headers=reqheaders, method='POST'))
     resp = json.loads(req.read().decode('utf-8'))
 
     if not resp['ok']:
@@ -376,6 +409,23 @@ $(eval $(generic-package))
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html', builders=builders)
+
+@app.route('/buildroot', methods=['GET'])
+def buildroot():
+    return render_template('builder.html',
+                           categories=(),
+                           buildername='MOD',
+                           buildertype='buildroot',
+                           name='',
+                           brand='',
+                           symbol='',
+                           category='(none)',
+                           fileexts='.mk',
+                           filenames='buildroot makefile')
+
+@app.route('/buildroot', methods=['POST'])
+def buildroot_post():
+    return Response(status=204)
 
 @app.route('/faust', methods=['GET'])
 def faust():
