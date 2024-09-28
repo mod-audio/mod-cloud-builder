@@ -294,6 +294,10 @@ $(eval $(generic-package))
         if not brand:
             brand = 'Pure Data'
 
+        # hvcc specific options
+        midi_in = bool(msg.get('midi_in', False))
+        midi_out = bool(msg.get('midi_out', False))
+
         bundle = f"hvcc-{symbol}"
         package = f"""
 PURE_DATA_SKELETON_VERSION = 948e2139676734e5b0367819374922a8afa851b6
@@ -319,8 +323,8 @@ define PURE_DATA_SKELETON_CONFIGURE_CMDS
         "license": "ISC",\
         "lv2_info": "{category}",\
         "maker": "{brand}",\
-        "midi_input": 0,\
-        "midi_output": 0,\
+        "midi_input": {1 if midi_in else 0},\
+        "midi_output": {1 if midi_out else 0},\
         "plugin_uri": "urn:hvcc:{symbol}",\
         "plugin_formats ":["lv2_sep"],\
         "version": "0, 0, 0"\
