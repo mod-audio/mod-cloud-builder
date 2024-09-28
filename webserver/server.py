@@ -286,8 +286,15 @@ $(eval $(generic-package))
 """
 
     elif buildtype == 'hvcc':
-        if len(files.keys()) != 1:
-            emit('buildlog', 'More than 1 file uploaded, this is not allowed, please upload a single file')
+        if "main" not in files:
+            emit('buildlog', 'No main file selected')
+            emit('status', 'error')
+            return
+
+        main = files.pop("main")
+
+        if main not in files:
+            emit('buildlog', 'The main file was not found')
             emit('status', 'error')
             return
 
@@ -316,7 +323,7 @@ define PURE_DATA_SKELETON_CONFIGURE_CMDS
 	ln -s /root/heavylib $(@D)/heavylib
 	# create plugin files
 	mkdir $(@D)/plugin
-	cp $($(PKG)_PKGDIR)/*.pd $(@D)/plugin/plugin.pd
+	cp $($(PKG)_PKGDIR)/*.pd $(@D)/plugin/
 	echo '{{\
     "name": "{name}",\
     "dpf": {{\
@@ -332,7 +339,7 @@ define PURE_DATA_SKELETON_CONFIGURE_CMDS
         "version": "0, 0, 0"\
     }}\
 }}' > $(@D)/plugin/plugin.json
-	hvcc $(@D)/plugin/plugin.pd -m $(@D)/plugin/plugin.json -n "{name}" -g dpf -p $(@D)/heavylib -o $(@D)
+	hvcc $(@D)/plugin/{main} -m $(@D)/plugin/plugin.json -n "{name}" -g dpf -p $(@D)/heavylib -o $(@D)
 endef
 
 define PURE_DATA_SKELETON_BUILD_CMDS

@@ -186,6 +186,10 @@ $('document').ready(function() {
                 var reader = this;
                 data.files[reader.name] = reader.result;
                 if (++numFilesRead === files.length) {
+                    {% if buildertype == 'hvcc' %}
+                    // add main file
+                    data.files['main'] = $('#mainfile').val();
+                    {% endif %}
                     socket.emit('build', data);
                 }
             };
@@ -204,6 +208,31 @@ $('document').ready(function() {
         modws.send(window.plugindata);
         return false;
     });
+
+    {% if buildertype == 'hvcc' %}
+    function updatefiles() {
+        var files = $('#files')[0].files;
+        if (! files.length) {
+            return;
+        }
+
+        var html = '';
+        for (var i=0; i<files.length; ++i) {
+            var name = files[i].name;
+            html += '<option value="' + name + '">' + name + '</option>';
+        }
+
+        $('#mainfile').html(html);
+    }
+
+    // check if a file is pre-selected (browser cache)
+    updatefiles();
+
+    // sync files and mainfile
+    $('#files').change(function(e) {
+        updatefiles();
+    })
+    {% endif %}
 
     // sync name and symbol as needed
     $('#name').change(function(e) {
@@ -231,24 +260,31 @@ $('document').ready(function() {
                 <form id="form">
                     <div class="form-group">
                         <label for="files" class="form-label">Plugin files</label>
-                        <input type="file" class="form-control" name="files[]" id="files" accept="{{ fileexts }}" multiple required>
+                        <input type="file" class="form-control" id="files" name="files[]" accept="{{ fileexts }}" multiple required>
                     </div>
+                    {% if buildertype == 'hvcc' %}
+                    <div class="form-group">
+                        <label for="mainfile" class="form-label">Main file</label>
+                        <select class="form-control" id="mainfile" name="mainfile" required>
+                        </select>
+                    </div>
+                    {% endif %}
                     {% if buildertype != 'buildroot' %}
                     <div class="form-group">
                         <label for="name" class="form-label">Plugin name</label>
-                        <input type="text" class="form-control" name="name" value="{{ name }}" id="name" placeholder="Plugin name" autocomplete="on" required>
+                        <input type="text" class="form-control" value="{{ name }}" id="name" name="name" placeholder="Plugin name" autocomplete="on" required>
                     </div>
                     <div class="form-group">
                         <label for="brand" class="form-label">Plugin brand</label>
-                        <input type="text" class="form-control" name="brand" value="{{ brand }}" id="brand" placeholder="Plugin brand" autocomplete="on">
+                        <input type="text" class="form-control" value="{{ brand }}" id="brand" name="brand" placeholder="Plugin brand" autocomplete="on">
                     </div>
                     <div class="form-group">
                         <label for="symbol" class="form-label">Plugin uid/symbol</label>
-                        <input type="text" class="form-control" name="symbol" value="{{ symbol }}" id="symbol" placeholder="Plugin uid/symbol" autocomplete="on" required>
+                        <input type="text" class="form-control" value="{{ symbol }}" id="symbol" name="symbol" placeholder="Plugin uid/symbol" autocomplete="on" required>
                     </div>
                     <div class="form-group">
                         <label for="category" class="form-label">Plugin category</label>
-                        <select name="category" class="form-control" id="category">
+                        <select class="form-control" id="category" name="category">
                             {% for category in categories %}
                             <option value="{{ category }}">
                                 {{ category }}
@@ -259,11 +295,11 @@ $('document').ready(function() {
                     {% endif %}
                     {% if buildertype == 'hvcc' %}
                     <div class="mb-3 form-group form-check">
-                        <input class="form-check-input" type="checkbox" value="" id="midi_in">
+                        <input class="form-check-input" type="checkbox" value="" id="midi_in" name="midi_in">
                         <label for="midi_in" class="form-check-label">MIDI Input</label>
                     </div>
                     <div class="mb-3 form-group form-check">
-                        <input class="form-check-input" type="checkbox" value="" id="midi_out">
+                        <input class="form-check-input" type="checkbox" value="" id="midi_out" name="midi_out">
                         <label for="midi_out" class="form-check-label">MIDI Output</label>
                     </div>
                     {% endif %}
