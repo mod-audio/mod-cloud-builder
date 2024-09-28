@@ -312,6 +312,8 @@ define PURE_DATA_SKELETON_CONFIGURE_CMDS
 	pip3 install -e $(@D) --break-system-packages
 	# place symlink to dpf (known working version)
 	ln -s /root/dpf $(@D)/dpf
+	# place symlink to heavylib
+	ln -s /root/heavylib $(@D)/heavylib
 	# create plugin files
 	mkdir $(@D)/plugin
 	cp $($(PKG)_PKGDIR)/*.pd $(@D)/plugin/plugin.pd
@@ -330,7 +332,7 @@ define PURE_DATA_SKELETON_CONFIGURE_CMDS
         "version": "0, 0, 0"\
     }}\
 }}' > $(@D)/plugin/plugin.json
-	hvcc $(@D)/plugin/plugin.pd -m $(@D)/plugin/plugin.json -n "{name}" -g dpf -o $(@D)
+	hvcc $(@D)/plugin/plugin.pd -m $(@D)/plugin/plugin.json -n "{name}" -g dpf -p $(@D)/heavylib -o $(@D)
 endef
 
 define PURE_DATA_SKELETON_BUILD_CMDS

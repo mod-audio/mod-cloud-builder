@@ -23,6 +23,10 @@ ENV PYTHONUNBUFFERED 1
 RUN git clone https://github.com/DISTRHO/DPF.git /root/dpf
 RUN git -C /root/dpf checkout 61d38eb638449647fb8395a35c5b8dab7e981ba7
 
+# keep a known working version of heavylib around
+RUN git clone https://github.com/Wasted-Audio/heavylib.git /root/heavylib
+RUN git -C /root/heavylib checkout 6a73fb493a19da1152f42a2848835af62d8a08eb
+
 # copy builder code
 COPY builder.py /root
 
