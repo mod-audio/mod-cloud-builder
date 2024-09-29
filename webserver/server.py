@@ -307,7 +307,7 @@ $(eval $(generic-package))
 
         bundle = f"hvcc-{symbol}"
         package = f"""
-PURE_DATA_SKELETON_VERSION = 948e2139676734e5b0367819374922a8afa851b6
+PURE_DATA_SKELETON_VERSION = 44708e75e2f7ddfcf4b6629b3693bcb6e0bd5358
 PURE_DATA_SKELETON_SITE = https://github.com/Wasted-Audio/hvcc.git
 PURE_DATA_SKELETON_SITE_METHOD = git
 PURE_DATA_SKELETON_BUNDLES = {bundle}.lv2
