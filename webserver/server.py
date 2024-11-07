@@ -13,12 +13,16 @@ from flask import Flask, Response, copy_current_request_context, redirect, reque
 from flask_socketio import SocketIO, emit, send
 from gevent import spawn
 from re import sub as re_sub
+from tempfile import TemporaryDirectory
 from unicodedata import normalize
 from urllib.request import Request, urlopen
 from websocket import create_connection
 
 # configuration
-MOD_UI_HTML_DIR = os.getenv('MOD_UI_HTML_DIR', os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'mod-ui', 'html')))
+BUILDER_STORAGE = os.getenv('MOD_BUILDER_STORAGE', '/mnt/storage')
+
+MOD_UI_HTML_DIR = os.getenv('MOD_UI_HTML_DIR',
+                            os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'mod-ui', 'html')))
 
 print(MOD_UI_HTML_DIR)
 if not os.path.exists(MOD_UI_HTML_DIR):
@@ -89,8 +93,6 @@ def sanitize(name):
     name = name.replace('\\', '')
     if not name:
         return None
-    if name[0].isalpha():
-        name = '_' + name
     return name
 
 def symbolify(name):
@@ -117,8 +119,10 @@ def build(msg):
         emit('status', 'error')
         return
 
+    persistent = bool(msg.get('persistent', False))
+
     if buildtype == 'buildroot':
-        name = brand = symbol = category = ''
+        name = brand = symbol = category = lv2category = ''
 
     else:
         name = msg.get('name', None)
@@ -135,7 +139,7 @@ def build(msg):
 
         brand = msg.get('brand', None)
         if brand is None:
-            emit('buildlog', 'Brand is empty, cannot continue')
+            emit('buildlog', 'Brand is null, cannot continue')
             emit('status', 'error')
             return
 
@@ -156,9 +160,9 @@ def build(msg):
             return
 
         if category == '(none)':
-            category = 'lv2:Plugin'
+            lv2category = 'lv2:Plugin'
         else:
-            category = f"lv2:{category}Plugin"
+            lv2category = f"lv2:{category}Plugin"
 
     files = msg.get('files', None)
     if not files:
@@ -207,7 +211,7 @@ def build(msg):
         bundle = f"faust-{symbol}"
         package = f"""
 FAUST_SKELETON_VERSION = febaa50e4b1fcb0ec5ecfac1810c397ba70cf841
-FAUST_SKELETON_SITE = https://github.com/moddevices/faust-skeleton.git
+FAUST_SKELETON_SITE = https://github.com/mod-audio/faust-skeleton.git
 FAUST_SKELETON_SITE_METHOD = git
 FAUST_SKELETON_BUNDLES = {bundle}.lv2
 
@@ -222,7 +226,7 @@ define FAUST_SKELETON_CONFIGURE_CMDS
 		FAUST_BRAND="{brand}" \
 		FAUST_SYMBOL="{symbol}" \
 		FAUST_DESCRIPTION="FAUST based plugin, automatically generated via mod-cloud-builder" \
-		FAUST_LV2_CATEGORY="{category}" \
+		FAUST_LV2_CATEGORY="{lv2category}" \
 		$(@D)/setup.sh
 endef
 
@@ -254,7 +258,7 @@ $(eval $(generic-package))
         bundle = f"max-gen-{symbol}"
         package = f"""
 MAX_GEN_SKELETON_VERSION = b236792fa2bd4c3173c7182afe3e358a77e58df1
-MAX_GEN_SKELETON_SITE = https://github.com/moddevices/max-gen-skeleton.git
+MAX_GEN_SKELETON_SITE = https://github.com/mod-audio/max-gen-skeleton.git
 MAX_GEN_SKELETON_SITE_METHOD = git
 MAX_GEN_SKELETON_BUNDLES = {bundle}.lv2
 
@@ -270,7 +274,7 @@ define MAX_GEN_SKELETON_CONFIGURE_CMDS
 		MAX_GEN_BRAND="{brand}" \
 		MAX_GEN_SYMBOL="{symbol}" \
 		MAX_GEN_DESCRIPTION="MAX gen~ based plugin, automatically generated via mod-cloud-builder" \
-		MAX_GEN_LV2_CATEGORY="{category}" \
+		MAX_GEN_LV2_CATEGORY="{lv2category}" \
 		$(@D)/setup.sh
 endef
 
@@ -330,7 +334,7 @@ define PURE_DATA_SKELETON_CONFIGURE_CMDS
         "description": "Pure Data (hvcc) based plugin, automatically generated via mod-cloud-builder",\
         "homepage": "https://github.com/Wasted-Audio/hvcc",\
         "license": "ISC",\
-        "lv2_info": "{category}",\
+        "lv2_info": "{lv2category}",\
         "maker": "{brand}",\
         "midi_input": {1 if midi_in else 0},\
         "midi_output": {1 if midi_out else 0},\
@@ -358,28 +362,44 @@ $(eval $(generic-package))
         emit('status', 'error')
         return
 
-    reqdata = json.dumps({
-      'name': name,
-      'files': files,
-      'package': package,
-    }).encode('utf-8')
-
     reqheaders = {
       'Content-Type': 'application/json; charset=UTF-8',
     }
 
-    targethost = targets[device]
-
-    req = urlopen(Request(f'http://{targethost}/', data=reqdata, headers=reqheaders, method='POST'))
-    resp = json.loads(req.read().decode('utf-8'))
-
-    if not resp['ok']:
-        emit('buildlog', resp['error'])
-        emit('status', 'error')
-        return
+    if persistent:
+        devices = list(targets.keys())
+        devices.remove(device)
+        outdir = TemporaryDirectory(prefix='', dir=BUILDER_STORAGE)
 
     @copy_current_request_context
-    def buildlog(ws, reqid):
+    def create_build_req(targethost):
+        reqdata = json.dumps({
+            'name': name,
+            'files': files,
+            'package': package,
+        }).encode('utf-8')
+
+        req = urlopen(Request(f'http://{targethost}/', data=reqdata, headers=reqheaders, method='POST'))
+        resp = json.loads(req.read().decode('utf-8'))
+
+        if not resp['ok']:
+            emit('buildlog', resp['error'])
+            emit('status', 'error')
+            return None, None
+
+        ws = create_connection(f'ws://{targethost}/build')
+        ws.send(resp['id'])
+
+        if not ws.connected:
+            emit('buildlog', 'failed to start server-side build job')
+            emit('status', 'error')
+            ws.close()
+            return None, None
+
+        return ws, resp['id']
+
+    @copy_current_request_context
+    def buildlog(ws, reqid, device):
         if not ws.connected:
             emit('buildlog', 'server-side build job closed unexpectedly')
             emit('status', 'error')
@@ -397,31 +417,115 @@ $(eval $(generic-package))
             reqdata = json.dumps({
                 'id': reqid
             }).encode('utf-8')
-            req = urlopen(Request(f'http://{targethost}/', data=reqdata, headers=reqheaders, method='GET'))
+            req = urlopen(Request(f'http://{targets[device]}/', data=reqdata, headers=reqheaders, method='GET'))
             resp = req.read()
-            emit('buildfile', encodebytes(resp).decode('utf-8'))
             ws.close()
+
+            # store build file on client side for the first build
+            if not persistent or len(devices) == len(targets.keys()) - 1:
+                emit('buildfile', encodebytes(resp).decode('utf-8'))
+
+            # regular single build
+            if not persistent:
+                emit('status', 'finished')
+                return
+
+            # multi-target build
+            with open(os.path.join(outdir.name, device + '.tar.gz'), 'wb') as fh:
+                fh.write(resp)
+
+            if not devices:
+                with open(os.path.join(BUILDER_STORAGE, outdir.name, 'config.json'), 'w') as fh:
+                    config = {
+                        'name': name,
+                        'brand': brand,
+                        'category': category,
+                    }
+                    fh.write(json.dumps(config))
+
+                emit('buildlog', '----------------------------------------')
+                emit('buildlog', 'All builds completed.')
+                emit('buildurl', os.path.basename(outdir.name))
+                emit('status', 'finished')
+                return
+
+            # trigger next build
+            device = devices.pop(0)
+
+            emit('buildlog', '----------------------------------------')
+            emit('buildlog', f'Starting build for {device}...')
+
+            ws, reqid = create_build_req(targets[device])
+            if ws is None:
+                return
+
+            spawn(buildlog, ws, reqid, device)
             return
 
         print(recv, end='')
         emit('buildlog', recv)
-        spawn(buildlog, ws, reqid)
+        spawn(buildlog, ws, reqid, device)
 
-    ws = create_connection(f'ws://{targethost}/build')
-    ws.send(resp['id'])
-
-    if not ws.connected:
-        emit('buildlog', 'failed to start server-side build job')
-        emit('status', 'error')
-        ws.close()
+    ws, reqid = create_build_req(targets[device])
+    if ws is None:
         return
 
     emit('status', 'building')
-    spawn(buildlog, ws, resp['id'])
+    spawn(buildlog, ws, reqid, device)
+
+@socketio.on('fetch')
+def fetch(msg):
+    print('fetch started')
+
+    device = msg.get('device', None)
+    if device is None or device not in targets:
+        emit('fetchlog', 'Invalid device target, cannot continue')
+        emit('status', 'error')
+        return
+
+    basename = msg.get('basename', None)
+    if not basename:
+        emit('fetchlog', 'Basename is empty, cannot continue')
+        emit('status', 'error')
+        return
+
+    basename = sanitize(basename)
+    if not basename:
+        emit('fetchlog', 'Invalid basename, cannot continue')
+        emit('status', 'error')
+        return
+
+    filename = os.path.join(BUILDER_STORAGE, basename, device + '.tar.gz')
+    if not os.path.exists(filename):
+        emit('fetchlog', 'Non-existent filename, cannot continue')
+        emit('status', 'error')
+        return
+
+    with open(filename, 'rb') as fh:
+        emit('fetchfile', encodebytes(fh.read()).decode('utf-8'))
+
+    emit('status', 'finished')
 
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html', builders=builders)
+
+@app.route('/install/<path:path>', methods=['GET'])
+def install(path):
+    basename = sanitize(path)
+
+    # TODO error page
+    if not basename:
+        return
+
+    filename = os.path.join(BUILDER_STORAGE, basename, 'config.json')
+    if not os.path.exists(filename):
+        return
+
+    with open(filename, 'r') as fh:
+        config = json.load(fh)
+
+    return render_template('install.html', basename=path, config=config)
 
 @app.route('/buildroot', methods=['GET'])
 def buildroot():

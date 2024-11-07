@@ -32,3 +32,5 @@ services:
             - moddwarf-builder
         ports:
           - "8010:8000"
+        volumes:
+          - ./storage:/mnt/storage

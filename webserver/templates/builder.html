@@ -83,10 +83,10 @@ $('document').ready(function() {
                 $('#status').html('Status: error');
                 $('#log').append(data['error'] + '<br>');
             } else {
-                $('#status').html('Status: uploaded');
+                $('#status').html('Status: installed');
                 $('#log').append(data['installed'] + ' has been installed.<br>');
             }
-        }
+        };
         modws.onopen = function() {
             if (modws != this) return;
             $('#connect').addClass('disabled');
@@ -98,7 +98,8 @@ $('document').ready(function() {
             if (modConnected) {
                 modConnected = false;
                 $('#build').addClass('disabled');
-                $('#upload').addClass('disabled');
+                $('#install').addClass('disabled');
+                $('#share').addClass('disabled').hide();
                 $('#status').html('Status: disconnected');
                 $('#log').append('<br>WARNING: The MOD unit has been disconnected.<br>');
             }
@@ -107,7 +108,7 @@ $('document').ready(function() {
             if (modws != this) return;
             $('#status').html('Status: error');
             $('#log').append('<br>WARNING: Unable to connect to MOD unit, not plugged in to USB or running < 1.13.3?<br>');
-        }
+        };
     };
     modconnect();
 
@@ -127,12 +128,23 @@ $('document').ready(function() {
         $('#status').html('Status: ' + status);
         switch (status) {
         case 'building':
+            window.plugindata = window.pluginurl = null;
             $('#build').addClass('disabled');
-            $('#upload').addClass('disabled');
+            $('#install').addClass('disabled');
+            $('#share').addClass('disabled').hide().attr('href', '#');
+            break;
+        case 'finished':
+            $('#status').html('Status: build complete');
+            $('#build').removeClass('disabled');
+            $('#install').removeClass('disabled');
+            if (window.pluginurl) {
+                $('#share').removeClass('disabled').show().attr('href', '/install/' + window.pluginurl);
+            }
             break;
         case 'error':
             $('#build').removeClass('disabled');
-            $('#upload').addClass('disabled');
+            $('#install').addClass('disabled');
+            $('#share').addClass('disabled').hide().attr('src', '#');
             break;
         }
     });
@@ -142,9 +154,9 @@ $('document').ready(function() {
     });
     socket.on('buildfile', function(data) {
         window.plugindata = data;
-        $('#status').html('Status: build complete');
-        $('#build').removeClass('disabled');
-        $('#upload').removeClass('disabled');
+    });
+    socket.on('buildurl', function(data) {
+        window.pluginurl = data;
     });
 
     // reconnect to a MOD unit
@@ -177,6 +189,7 @@ $('document').ready(function() {
             category: $('#category').val(),
             midi_in: $('#midi_in').is(':checked'),
             midi_out: $('#midi_out').is(':checked'),
+            persistent: $('#persistent').is(':checked'),
         };
         var numFilesRead = 0;
         for (var i=0; i<files.length; ++i) {
@@ -198,16 +211,19 @@ $('document').ready(function() {
         return false;
     });
 
-    // upload function, only allowed after build
-    $('#upload').addClass('disabled').click(function() {
+    // install function, only allowed after build
+    $('#install').addClass('disabled').click(function() {
         if (!ioConnected || !modConnected || $(this).hasClass('disabled') || !modws || !window.plugindata) {
             return false;
         }
-        $('#status').html('Status: uploading');
+        $('#status').html('Status: installing');
         $('#log').html('');
         modws.send(window.plugindata);
         return false;
     });
+
+    // share function, only allowed after persistent builds
+    $('#share').addClass('disabled').hide();
 
     {% if buildertype == 'hvcc' %}
     function updatefiles() {
@@ -303,6 +319,10 @@ $('document').ready(function() {
                         <label for="midi_out" class="form-check-label">MIDI Output</label>
                     </div>
                     {% endif %}
+                    <div class="mb-3 form-group form-check">
+                        <input class="form-check-input" type="checkbox" value="" id="persistent" name="persistent" alt="hi there!">
+                        <label for="persistent" class="form-check-label">Create shareable, persistent build</label>
+                    </div>
                     <!--
                     <div class="mb-3 form-group form-check">
                         <input class="form-check-input" type="checkbox" value="" id="save-settings">
@@ -313,7 +333,8 @@ $('document').ready(function() {
                     -->
                     <input type="button" class="btn btn-primary" value="Connect" id="connect">
                     <input type="submit" class="btn btn-primary" value="Build" id="build">
-                    <input type="button" class="btn btn-primary" value="Upload" id="upload">
+                    <input type="button" class="btn btn-primary" value="Install" id="install">
+                    <a type="button" class="btn btn-primary" id="share" href="#" target="_blank">Share</a>
                 </form>
             </div>
             <div class="cloud-plugins clearfix js-cloud-plugins">
@@ -327,7 +348,7 @@ $('document').ready(function() {
                         Welcome to the MOD Cloud Builder for {{ buildername }}.<br>
                         <br>
                         Connect your MOD unit via USB, upload your {{ filenames }} files and give the plugin a name.<br>
-                        When all is ready, press the "Build" button and wait for it to complete, then press the "Upload" button to push the plugin build into your unit.<br>
+                        When all is ready, press the "Build" button and wait for it to complete, then press the "Install" button to push the plugin build into your unit.<br>
                         <br>
                         Make sure you are running the latest 1.13.3 release, which is needed for receiving builds from this service.<br>
                         <br>

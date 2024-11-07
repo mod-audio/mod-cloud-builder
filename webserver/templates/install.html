@@ -1,0 +1,197 @@
+{% extends 'base.html' %}
+{% block content %}
+<style type="text/css" media="screen">
+#cloud-plugins-library,
+#cloud-plugins-library .filter,
+#cloud-plugins-library .cloud-plugins,
+#pedalboards-library .pedalboards {
+    bottom: 0;
+}
+#cloud-plugins-library .filter {
+    left: 0;
+    right: 0;
+    width: calc(165px - 20px);
+    margin: 0 10px;
+}
+.cloud-plugins {
+    left: 165px;
+}
+#status {
+    position: fixed;
+    top: 45px;
+    margin: 0;
+    padding: 14px;
+    width: 100%;
+    height: 50px;
+    background: #2a2a2a;
+}
+#log {
+    color: #ccc;
+    padding: 20px;
+    margin-top: 50px;
+    font-family: monospace !important;
+    height: calc(100vh - 100px);
+    overflow: auto;
+}
+#log::selection {
+    background: #883996;
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
+<script type="text/javascript" charset="utf-8">
+$('document').ready(function() {
+    var ioConnected = false;
+    var modConnected = false;
+
+    function enable() {
+        if (!ioConnected || !modConnected) {
+            return;
+        }
+        $('#status').html('Status: fetching plugin file...');
+
+        var data = {
+            device: modConnected,
+            basename: window.location.pathname.substr(9),
+        };
+        socket.emit('fetch', data);
+    }
+
+    // MOD websocket handling
+    var modws = null;
+    function modconnect() {
+        $('#status').html('Status: connecting...');
+        var oldws = modws;
+        modws = null;
+        if (oldws != null) {
+            oldws.close();
+        }
+        modConnected = false;
+        modws = new WebSocket('ws://192.168.51.1/rplsocket');
+        modws.onmessage = function (evt) {
+            if (modws != this) return;
+            var data = JSON.parse(evt.data);
+            if (! modConnected) {
+                modConnected = data['platform'];
+                enable();
+            } else if (! data['ok']) {
+                $('#status').html('Status: error');
+                $('#log').append(data['error'] + '<br>');
+            } else {
+                $('#status').html('Status: installed');
+                $('#log').append(data['installed'] + ' has been installed.<br>');
+            }
+        };
+        modws.onopen = function() {
+            if (modws != this) return;
+            $('#connect').addClass('disabled');
+            modws.send('');
+        };
+        modws.onclose = function () {
+            if (modws != this) return;
+            $('#connect').removeClass('disabled');
+            if (modConnected) {
+                modConnected = false;
+                $('#install').addClass('disabled');
+                $('#status').html('Status: disconnected');
+                $('#log').append('<br>WARNING: The MOD unit has been disconnected.<br>');
+            }
+        }
+        modws.onerror = function () {
+            if (modws != this) return;
+            $('#status').html('Status: error');
+            $('#log').append('<br>WARNING: Unable to connect to MOD unit, not plugged in to USB or running < 1.13.3?<br>');
+        };
+    };
+    modconnect();
+
+    // socket.io handling
+    var proto;
+    if (window.location.protocol === 'https:') {
+        proto = 'wss:';
+    } else {
+        proto = 'ws:';
+    }
+    var socket = io(proto + '//' + window.location.host + '/');
+    socket.on('connect', function() {
+        ioConnected = true;
+        enable();
+    });
+    socket.on('status', function(status) {
+        $('#status').html('Status: ' + status);
+        switch (status) {
+        case 'finished':
+            $('#status').html('Status: ready');
+            $('#install').removeClass('disabled');
+            if (window.pluginurl) {
+                $('#share').removeClass('disabled').show().attr('href', '/install/' + window.pluginurl);
+            }
+            break;
+        case 'error':
+            $('#install').addClass('disabled');
+            break;
+        }
+    });
+    socket.on('fetchlog', function(msg) {
+        $('#log').append(msg + '<br>');
+        $('#log').animate({ scrollTop: $('#log')[0].scrollHeight }, 1);
+    });
+    socket.on('fetchfile', function(data) {
+        window.plugindata = data;
+    });
+
+    // reconnect to a MOD unit
+    $('#connect').click(function() {
+        if (modConnected) {
+            return;
+        }
+        modconnect();
+    });
+
+    // install function, only allowed after build
+    $('#install').addClass('disabled');
+    $('#form').submit(function() {
+        if (!ioConnected || !modConnected || !modws || !window.plugindata) {
+            return false;
+        }
+        $('#status').html('Status: installing');
+        $('#log').html('');
+        modws.send(window.plugindata);
+        return false;
+    });
+})
+</script>
+<div id="cloud-plugins-library">
+    <div class="box clearfix">
+        <header>
+            <h1 class="bottom top">MOD CLOUD BUILDER - {{ config.brand }}: {{ config.name }}</h1>
+        </header>
+        <div id="cloudplugin-results-wrapper">
+            <div class="filter clearfix">
+                <h2>Plugin actions</h2>
+                <form id="form">
+                    <input type="button" class="btn btn-primary" value="Connect" id="connect">
+                    <input type="submit" class="btn btn-primary" value="Install" id="install">
+                </form>
+            </div>
+            <div class="cloud-plugins clearfix js-cloud-plugins">
+                <div>
+                    <h2 id="status"></h2>
+                    <div id="log" class="plugins-wrapper">
+                        <noscript>
+                        Please activate JavaScript on this page to begin, the builder does not work without it.
+                        <br><br>
+                        </noscript>
+                        Welcome to the MOD Cloud Builder, this is a special page for installing custom builds.<br>
+                        <br>
+                        Connect your MOD unit via USB and then press the "Install" button to push the plugin build into your unit.<br>
+                        <br>
+                        Make sure you are running the latest 1.13.3 release, which is needed for receiving builds from this service.<br>
+                        <br>
+                        <h4>This specific page is meant for <b>{{ config.name }}</b> by <b>{{ config.brand }}</b> with category <b>{{ config.category }}</b>.</h4><br>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
