@@ -13,7 +13,7 @@ from flask import Flask, Response, copy_current_request_context, redirect, reque
 from flask_socketio import SocketIO, emit, send
 from gevent import spawn
 from re import sub as re_sub
-from tempfile import TemporaryDirectory
+from tempfile import mkdtemp
 from unicodedata import normalize
 from urllib.request import Request, urlopen
 from websocket import create_connection
@@ -369,7 +369,7 @@ $(eval $(generic-package))
     if persistent:
         devices = list(targets.keys())
         devices.remove(device)
-        outdir = TemporaryDirectory(prefix='', dir=BUILDER_STORAGE)
+        outdir = mkdtemp(prefix='', dir=BUILDER_STORAGE)
 
     @copy_current_request_context
     def create_build_req(targethost):
@@ -431,11 +431,11 @@ $(eval $(generic-package))
                 return
 
             # multi-target build
-            with open(os.path.join(outdir.name, device + '.tar.gz'), 'wb') as fh:
+            with open(os.path.join(outdir, device + '.tar.gz'), 'wb') as fh:
                 fh.write(resp)
 
             if not devices:
-                with open(os.path.join(BUILDER_STORAGE, outdir.name, 'config.json'), 'w') as fh:
+                with open(os.path.join(BUILDER_STORAGE, outdir, 'config.json'), 'w') as fh:
                     config = {
                         'name': name,
                         'brand': brand,
@@ -445,7 +445,7 @@ $(eval $(generic-package))
 
                 emit('buildlog', '----------------------------------------')
                 emit('buildlog', 'All builds completed.')
-                emit('buildurl', os.path.basename(outdir.name))
+                emit('buildurl', os.path.basename(outdir))
                 emit('status', 'finished')
                 return
 
