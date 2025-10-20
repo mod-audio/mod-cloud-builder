@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # MOD Cloud Builder
-# SPDX-FileCopyrightText: 2023-2024 MOD Audio UG
+# SPDX-FileCopyrightText: 2023-2025 MOD Audio UG
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # imports
@@ -72,6 +72,7 @@ targets = {
     'duo': 'modduo-builder:8001',
     'duox': 'modduox-builder:8002',
     'dwarf': 'moddwarf-builder:8003',
+    'anagram': 'darkglass-anagram-builder:8004',
 }
 
 # setup

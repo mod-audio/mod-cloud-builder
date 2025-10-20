@@ -24,6 +24,14 @@ services:
         ports:
           - "8003:8003"
 
+    darkglass-anagram-builder:
+        image: mcb-builder-darkglass-anagram
+        environment:
+          - MCB_BUILDER_PORT=8004
+          - MCB_BUILDER_TARGET=darkglass-anagram
+        ports:
+          - "8004:8004"
+
     webserver:
         image: mcb-webserver
         depends_on:

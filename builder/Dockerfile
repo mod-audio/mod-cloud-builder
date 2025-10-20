@@ -1,5 +1,5 @@
-ARG platform=moddwarf
-FROM mpb-minimal-$platform-new
+ARG platform=UNSET
+FROM mpb-minimal-$platform
 LABEL maintainer="Filipe Coelho <falktx@mod.audio>"
 ENV DEBIAN_FRONTEND noninteractive
 WORKDIR /root/mod-plugin-builder
