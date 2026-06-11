@@ -37,8 +37,17 @@ class Builder(object):
             if self.proc is None:
                 break
             if stdout == b'':
+                # subprocess closed stdout; wait for it to actually exit so
+                # we can report success or failure based on the return code,
+                # rather than unconditionally claiming success
+                proc = self.proc
                 self.proc = None
-                write_message_callback(u"Build completed successfully.")
+                returncode = await proc.wait()
+                if returncode == 0:
+                    write_message_callback(u"Build completed successfully.")
+                else:
+                    write_message_callback(
+                        u"Build failed with exit code %d." % returncode)
                 write_message_callback(u'--- END ---')
                 break
             write_message_callback(stdout)
