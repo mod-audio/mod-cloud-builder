@@ -8,7 +8,12 @@ WORKDIR /root/mod-plugin-builder
 RUN apt-get update && apt-get upgrade -qqy && apt-get clean
 
 # install packages for pip and tornado
-RUN apt-get install -qqy python3-pip python3-tornado && apt-get clean
+# qemu-user-static is also installed as belt-and-suspenders for the binfmt
+# registration the host must provide (see README "Host requirements"): if the
+# host registers the handler with the F flag the container doesn't need its
+# own qemu binary, but installing one here makes other registration modes
+# work too.
+RUN apt-get install -qqy python3-pip python3-tornado qemu-user-static && apt-get clean
 
 # install faustpp
 RUN echo "deb https://ppa.launchpadcontent.net/kxstudio-debian/toolchain/ubuntu focal main" | tee /etc/apt/sources.list.d/kxstudio.list
