@@ -68,12 +68,38 @@ function modNeedsLocalNetworkPermission() {
     return window.isSecureContext && modChromiumMajor() > 0;
 }
 
-// Call first thing. Sends Chromium users of the http:// site to the https:// one
-// when the server says it exists. Returns true when navigating away.
+// true when this is an https:// page in a browser that blocks ws:// from it (mixed
+// content: Firefox throws on construction, Safari fails the connection asynchronously)
+function modNeedsInsecureSite() {
+    return window.location.protocol === 'https:' && modChromiumMajor() === 0;
+}
+
+// true for Safari on macOS, which also has a per-app "Local Network" switch since macOS 15
+function modIsMacSafari() {
+    var ua = navigator.userAgent;
+    return /Macintosh/.test(ua) && /Safari\//.test(ua) && !/Chrome\//.test(ua) && !/Firefox\//.test(ua);
+}
+
+// Call first thing. Sends each browser family to the site it can use:
+//  - Chromium on http:// -> https://, when the server says it exists
+//  - everything else on https:// -> http:// (Safari and Chrome may auto-upgrade a typed
+//    address to https, so this is the common way for Safari users to land here)
+// Returns true when navigating away.
 function modRedirectToSecureIfNeeded(httpsAvailable) {
     if (httpsAvailable && window.location.protocol === 'http:' && modBlockedByLocalNetworkAccess()) {
         window.location.replace(modSiblingUrl('https:'));
         return true;
+    }
+    if (modNeedsInsecureSite()) {
+        // guard against a browser that upgrades the http:// URL straight back to https://
+        var key = 'mod-insecure-redirect';
+        var already = false;
+        try { already = sessionStorage.getItem(key) === '1'; } catch (e) {}
+        if (!already) {
+            try { sessionStorage.setItem(key, '1'); } catch (e) {}
+            window.location.replace(modSiblingUrl('http:'));
+            return true;
+        }
     }
     return false;
 }
@@ -91,7 +117,7 @@ function modOpenDeviceSocket() {
 // Explanation to show when the unit could not be reached.
 // `refused` is true when modOpenDeviceSocket() returned null.
 function modConnectFailureHint(refused) {
-    if (refused) {
+    if (refused || modNeedsInsecureSite()) {
         return 'Your browser does not let this https page talk to a MOD unit over USB. ' +
                'Use the http version of this page instead: ' + modLink('http:');
     }
@@ -103,6 +129,10 @@ function modConnectFailureHint(refused) {
     var hint = 'Unable to connect to MOD unit, not plugged in to USB or running < ' + MOD_MIN_VERSION + '?';
     if (modNeedsLocalNetworkPermission()) {
         hint += '<br>If your browser asked for permission to access devices on your local network, allow it and press "Connect".';
+    }
+    if (modIsMacSafari()) {
+        hint += '<br>On macOS 15 or newer, also check that Safari is allowed under ' +
+                'System Settings &gt; Privacy &amp; Security &gt; Local Network, then press "Connect".';
     }
     return hint;
 }

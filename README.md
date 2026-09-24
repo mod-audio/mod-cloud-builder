@@ -44,8 +44,12 @@ each browser to the one it can use:
   same path on `https://`, provided the webserver runs with `MCB_HTTPS_AVAILABLE=1`
   (see `docker-compose.yml`). Without that flag the page only explains the problem and
   links to the `https://` URL when the connection fails.
-- On the `https://` site, a browser that refuses the WebSocket up front (Firefox, Safari)
-  is told to use the `http://` URL instead.
+- On the `https://` site, any non-Chromium browser (Firefox, Safari) is redirected to the
+  same path on `http://`. That matters because Safari and Chrome may upgrade a typed address
+  to `https://` on their own now that it exists. A session flag stops a redirect loop; if
+  the browser lands on `https://` a second time the page explains and links the `http://`
+  URL instead. Safari on macOS 15+ additionally needs its "Local Network" switch on in
+  System Settings, which the failure hint mentions.
 - While Chromium's permission prompt is up the status line reads "waiting for local
   network permission", and a failed connection reminds the user to allow it.
 
