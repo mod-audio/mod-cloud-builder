@@ -37,25 +37,31 @@ browsers restrict it in two incompatible ways:
   mixed-content rule: an `https://` page may not open `ws://` to anything but loopback.
   From an `http://` page the connection works.
 
-So the site must be served on both schemes, and `webserver/static/mod-connect.js` steers
-each browser to the one it can use:
+So the site must be served on both schemes, on the **same hostname**, and each browser has
+to end up on the one it can use. Two things make that work together:
 
-- On the `http://` site, a Chromium browser new enough to be blocked is redirected to the
-  same path on `https://`, provided the webserver runs with `MCB_HTTPS_AVAILABLE=1`
-  (see `docker-compose.yml`). Without that flag the page only explains the problem and
-  links to the `https://` URL when the connection fails.
-- On the `https://` site, any non-Chromium browser (Firefox, Safari) is redirected to the
-  same path on `http://`. That matters because Safari and Chrome may upgrade a typed address
-  to `https://` on their own now that it exists. A session flag stops a redirect loop; if
-  the browser lands on `https://` a second time the page explains and links the `http://`
-  URL instead. Safari on macOS 15+ additionally needs its "Local Network" switch on in
-  System Settings, which the failure hint mentions.
-- While Chromium's permission prompt is up the status line reads "waiting for local
-  network permission", and a failed connection reminds the user to allow it.
+- **nginx decides by browser on the https listener.** Firefox and Safari upgrade an http
+  address to https on their own as soon as the hostname answers on 443 (Firefox's
+  HTTPS-First does it even for an explicitly typed `http://` URL, and re-upgrades a
+  script redirect back to http). The one thing that makes them stop is the https URL
+  answering with a redirect to the *same* URL on http: they take that as "this site does
+  not want https" and stay on http. So on 443 nginx serves Chromium user agents (all of
+  them carry a `Chrome/` token: Chrome, Edge, Brave, Opera; Chrome on iOS says `CriOS`,
+  is WebKit, and correctly goes to http) and answers every other browser with a 302 to
+  http. The http listener never redirects.
+- **`webserver/static/mod-connect.js` handles the Chromium direction.** On the http site a
+  Chromium browser new enough to be blocked is redirected to the same path on https,
+  provided the webserver runs with `MCB_HTTPS_AVAILABLE=1` (see `docker-compose.yml`).
+  Without that flag the page only explains the problem and links the https URL when the
+  connection fails. It also keeps a fallback for a non-Chromium browser that somehow
+  lands on https (redirect to http, hint with the http link), shows "waiting for local
+  network permission" while Chromium's prompt is up, and reminds Safari users on macOS 15+
+  of the per-app "Local Network" switch in System Settings.
 
 The `socket.io` connection to this webserver follows the page scheme (`ws://` or
-`wss://`) automatically, and the reverse proxy in front of port 8010 must pass WebSocket
-upgrades on both listeners. A minimal nginx example, with certificates from Let's Encrypt:
+`wss://`) automatically, and the reverse proxy must pass WebSocket upgrades on both
+listeners. The nginx site used on builder.mod.audio, with certificates from Let's Encrypt
+(`certbot --nginx --no-redirect`):
 
 ```nginx
 map $http_upgrade $connection_upgrade {
@@ -63,23 +69,45 @@ map $http_upgrade $connection_upgrade {
     ''      close;
 }
 
+# 1 for Chromium-based browsers
+map $http_user_agent $mod_chromium {
+    default    0;
+    "~Chrome/" 1;
+}
+
+# 1 when an https request comes from a non-Chromium browser
+map "$scheme$mod_chromium" $mod_downgrade {
+    default  0;
+    "https0" 1;
+}
+
 server {
     listen 80;
+    listen [::]:80;
     listen 443 ssl;
+    listen [::]:443 ssl ipv6only=on;
     server_name builder.mod.audio;
 
     ssl_certificate     /etc/letsencrypt/live/builder.mod.audio/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/builder.mod.audio/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
     # no http->https redirect here: Firefox and Safari need the http site
 
+    if ($mod_downgrade) {
+        return 302 http://$host$request_uri;
+    }
+
     location / {
-        proxy_pass http://127.0.0.1:8010;
+        proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
         proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 3600s;
+        client_max_body_size 64m;
     }
 }
 ```
