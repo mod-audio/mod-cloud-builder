@@ -38,6 +38,10 @@ services:
             - modduo-builder
             - modduox-builder
             - moddwarf-builder
+        environment:
+          # set to 1 once the reverse proxy in front of port 8010 also serves https,
+          # see README "Browser requirements"
+          - MCB_HTTPS_AVAILABLE=0
         ports:
           - "8010:8000"
         volumes:

@@ -20,7 +20,7 @@ webserver: .stamp-webserver .stamp-darkglass-anagram-builder .stamp-modduo-new-b
 .stamp-%-image: mod-plugin-builder/docker/Dockerfile
 	$(shell which docker) build mod-plugin-builder/docker --build-arg platform=$* --build-arg target=minimal --tag mpb-minimal-$* && touch $@
 
-.stamp-webserver: webserver/Dockerfile webserver/server.py webserver/templates/*.html
+.stamp-webserver: webserver/Dockerfile webserver/server.py webserver/static/* webserver/templates/*.html
 	$(shell which docker) build webserver --tag mcb-webserver && touch $@
 
 run: webserver

@@ -38,8 +38,14 @@
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
+<script type="text/javascript" src="/static/mod-connect.js"></script>
 <script type="text/javascript" charset="utf-8">
 $('document').ready(function() {
+    // Chromium refuses the USB connection from http pages, see static/mod-connect.js
+    if (modRedirectToSecureIfNeeded({{ 'true' if https_available else 'false' }})) {
+        return;
+    }
+
     var ioConnected = false;
     var modConnected = false;
 
@@ -66,7 +72,19 @@ $('document').ready(function() {
             oldws.close();
         }
         modConnected = false;
-        modws = new WebSocket('ws://192.168.51.1/rplsocket');
+        modws = modOpenDeviceSocket();
+        if (modws === null) {
+            $('#connect').removeClass('disabled');
+            $('#status').html('Status: error');
+            $('#log').append('<br>WARNING: ' + modConnectFailureHint(true) + '<br>');
+            return;
+        }
+        var pendingws = modws;
+        setTimeout(function() {
+            if (modws === pendingws && pendingws.readyState === WebSocket.CONNECTING) {
+                $('#status').html(modPendingStatus());
+            }
+        }, 1500);
         modws.onmessage = function (evt) {
             if (modws != this) return;
             var data = JSON.parse(evt.data);
@@ -99,7 +117,7 @@ $('document').ready(function() {
         modws.onerror = function () {
             if (modws != this) return;
             $('#status').html('Status: error');
-            $('#log').append('<br>WARNING: Unable to connect to MOD unit, not plugged in to USB or running < 1.13.3?<br>');
+            $('#log').append('<br>WARNING: ' + modConnectFailureHint(false) + '<br>');
         };
     };
     modconnect();
@@ -185,7 +203,9 @@ $('document').ready(function() {
                         <br>
                         Connect your MOD unit via USB and then press the "Install" button to push the plugin build into your unit.<br>
                         <br>
-                        Make sure you are running the latest 1.13.3 release, which is needed for receiving builds from this service.<br>
+                        Make sure your unit runs release 1.13.3 or later, which is needed for receiving builds from this service.<br>
+                        <br>
+                        Chrome and other Chromium-based browsers only allow the USB connection from the https version of this site, and ask for permission to access your local network the first time; Firefox and Safari only allow it from the http version. You are sent to the right one automatically, or pointed to it if the connection fails.<br>
                         <br>
                         <h4>This specific page is meant for <b>{{ config.name }}</b> by <b>{{ config.brand }}</b> with category <b>{{ config.category }}</b>.</h4><br>
                     </div>

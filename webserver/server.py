@@ -21,6 +21,11 @@ from websocket import create_connection
 # configuration
 BUILDER_STORAGE = os.getenv('MOD_BUILDER_STORAGE', '/mnt/storage')
 
+# Set to 1 once this site is also served over https (see README, "Browser requirements").
+# Chromium-based browsers are then sent from the http site to the https one, which is
+# the only place they can reach a MOD unit over USB from.
+HTTPS_AVAILABLE = os.getenv('MCB_HTTPS_AVAILABLE', '0').strip().lower() not in ('', '0', 'false', 'no')
+
 MOD_UI_HTML_DIR = os.getenv('MOD_UI_HTML_DIR',
                             os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'mod-ui', 'html')))
 
@@ -80,6 +85,12 @@ app = Flask(__name__)
 # Disable caching?
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+@app.context_processor
+def inject_globals():
+    return {
+        'https_available': HTTPS_AVAILABLE,
+    }
 
 def sanitize(name):
     if not name:
