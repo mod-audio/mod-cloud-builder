@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && apt-get upgrade -qqy && apt-get clean
 
 # install required packages
-RUN apt-get install -qqy git pylint python3-flask python3-flask-socketio python3-flask-sockets python3-websocket && \
+RUN apt-get install -qqy git pylint python3-flask python3-flask-socketio python3-flask-sockets python3-rdflib python3-websocket && \
     apt-get clean
 
 # user configuration
@@ -27,7 +27,7 @@ ENV PYTHONUNBUFFERED 1
 # copy builder code
 RUN mkdir $HOME/static $HOME/templates
 RUN git clone --depth=1 https://github.com/moddevices/mod-ui.git
-COPY server.py $HOME
+COPY bundleinfo.py server.py $HOME/
 COPY static/*.* $HOME/static/
 COPY templates/*.html $HOME/templates/
 

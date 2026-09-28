@@ -181,7 +181,7 @@ $('document').ready(function() {
 <div id="cloud-plugins-library">
     <div class="box clearfix">
         <header>
-            <h1 class="bottom top">MOD CLOUD BUILDER - {{ config.brand }}: {{ config.name }}</h1>
+            <h1 class="bottom top">MOD CLOUD BUILDER - {% if config.name %}{% if config.brand %}{{ config.brand }}: {% endif %}{{ config.name }}{% else %}Custom build{% endif %}</h1>
         </header>
         <div id="cloudplugin-results-wrapper">
             <div class="filter clearfix">
@@ -207,7 +207,11 @@ $('document').ready(function() {
                         <br>
                         Chrome and other Chromium-based browsers only allow the USB connection from the https version of this site, and ask for permission to access your local network the first time; Firefox and Safari only allow it from the http version. You are sent to the right one automatically, or pointed to it if the connection fails.<br>
                         <br>
-                        <h4>This specific page is meant for <b>{{ config.name }}</b> by <b>{{ config.brand }}</b> with category <b>{{ config.category }}</b>.</h4><br>
+                        {% if config.name %}
+                        <h4>This specific page is meant for <b>{{ config.name }}</b>{% if config.author or config.brand %} by <b>{{ config.author or config.brand }}</b>{% endif %}{% if config.category and config.category != '(none)' %} with category <b>{{ config.category }}</b>{% endif %}.</h4><br>
+                        {% else %}
+                        <h4>This specific page is meant for a custom plugin build.</h4><br>
+                        {% endif %}
                     </div>
                 </div>
             </div>

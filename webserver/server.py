@@ -18,6 +18,8 @@ from unicodedata import normalize
 from urllib.request import Request, urlopen
 from websocket import create_connection
 
+from bundleinfo import read_bundle_info
+
 # configuration
 BUILDER_STORAGE = os.getenv('MOD_BUILDER_STORAGE', '/mnt/storage')
 
@@ -114,6 +116,17 @@ def symbolify(name):
     if name[0].isdigit():
         name = '_' + name
     return name
+
+def stored_bundle_info(outdir):
+    # all targets are built from the same sources, the first build we can read will do
+    for device in targets:
+        filename = os.path.join(outdir, device + '.tar.gz')
+        if not os.path.exists(filename):
+            continue
+        info = read_bundle_info(filename)
+        if info:
+            return info
+    return {}
 
 @socketio.on('build')
 def build(msg):
@@ -453,6 +466,9 @@ $(eval $(generic-package))
                         'brand': brand,
                         'category': category,
                     }
+                    # buildroot packages define these on their own, take them from the build
+                    if buildtype == 'buildroot':
+                        config.update(stored_bundle_info(outdir))
                     fh.write(json.dumps(config))
 
                 emit('buildlog', '----------------------------------------')
@@ -536,6 +552,18 @@ def install(path):
 
     with open(filename, 'r') as fh:
         config = json.load(fh)
+
+    # buildroot builds stored before the plugin details were taken from the build
+    if not config.get('name'):
+        info = stored_bundle_info(os.path.dirname(filename))
+        if info:
+            config.update(info)
+            try:
+                with open(filename + '.tmp', 'w') as fh:
+                    fh.write(json.dumps(config))
+                os.replace(filename + '.tmp', filename)
+            except OSError as e:
+                print(f'failed to update {filename}: {e}')
 
     return render_template('install.html', basename=path, config=config)
 
