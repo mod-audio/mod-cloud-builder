@@ -74,6 +74,11 @@ builders = [
         'href': '/hvcc',
         'image_url': '/static/hvcc-logo.png'
     },
+    {
+        'name': 'Buildroot package',
+        'href': '/buildroot',
+        'image_url': '/static/buildroot-logo.png'
+    },
     #{
         #'name': 'MAX RNBO',
         #'href': '/rnbo',
