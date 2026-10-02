@@ -12,7 +12,7 @@ from base64 import encodebytes
 from flask import Flask, Response, copy_current_request_context, redirect, request, render_template, send_from_directory
 from flask_socketio import SocketIO, emit, send
 from gevent import spawn
-from re import sub as re_sub
+from re import search as re_search, sub as re_sub
 from tempfile import mkdtemp
 from unicodedata import normalize
 from urllib.request import Request, urlopen
@@ -35,6 +35,28 @@ print(MOD_UI_HTML_DIR)
 if not os.path.exists(MOD_UI_HTML_DIR):
     print('mod-ui html dir is not accessible, cannot continue!')
     sys.exit(2)
+
+# hvcc v0.17.2 generates [expr~] code that uses the HvSignalVar.h macros for numeric constants
+# without including that header, so "expr~ $v1*2" only compiles if some other object in the
+# patch happens to pull it in. Shipped with every Pure Data build as a buildroot package patch;
+# drop it once the pinned hvcc has the fix.
+HVCC_PATCH_NAME = '0001-expr-signal-include-HvSignalVar.patch'
+HVCC_PATCH = r"""--- a/hvcc/generators/ir2c/SignalExpr.py
++++ b/hvcc/generators/ir2c/SignalExpr.py
+@@ -37,7 +37,11 @@ class SignalExpr(HeavyObject):
+ 
+     @classmethod
+     def get_C_header_set(cls) -> set:
+-        return {"HvMath.h"}
++        return {"HvMath.h", "HvSignalVar.h"}
++
++    @classmethod
++    def get_C_file_set(cls) -> set:
++        return {"HvMath.h", "HvSignalVar.h", "HvSignalVar.c"}
+ 
+     @classmethod
+     def get_C_class_header_code(cls, obj_type: str, args: Dict) -> List[str]:
+"""
 
 builders = [
     {
@@ -334,9 +356,17 @@ $(eval $(generic-package))
         midi_in = bool(msg.get('midi_in', False))
         midi_out = bool(msg.get('midi_out', False))
 
+        # hvcc implements [expr~] without SIMD only. With NEON (the Duo; the aarch64 targets
+        # already build Heavy without SIMD) its functions are empty stubs and constants do not
+        # compile, so patches using it are built with SIMD off.
+        nosimd = any(isinstance(content, str) and re_search(r'\sexpr~[\s;]', content)
+                     for content in files.values())
+
+        files[HVCC_PATCH_NAME] = HVCC_PATCH
+
         bundle = f"hvcc-{symbol}"
         package = f"""
-PURE_DATA_SKELETON_VERSION = 0a07c5a8274fe22be1a019aa1b8ae2a0df2f6e81
+PURE_DATA_SKELETON_VERSION = de4b13fa0e9daec14fe0414ac1bce28370298b4a
 PURE_DATA_SKELETON_SITE = https://github.com/Wasted-Audio/hvcc.git
 PURE_DATA_SKELETON_SITE_METHOD = git
 PURE_DATA_SKELETON_BUNDLES = {bundle}.lv2
@@ -355,6 +385,7 @@ define PURE_DATA_SKELETON_CONFIGURE_CMDS
 	cp $($(PKG)_PKGDIR)/*.pd $(@D)/plugin/
 	echo '{{\
     "name": "{name}",\
+    "nosimd": {'true' if nosimd else 'false'},\
     "dpf": {{\
         "description": "Pure Data (hvcc) based plugin, automatically generated via mod-cloud-builder",\
         "homepage": "https://github.com/Wasted-Audio/hvcc",\
