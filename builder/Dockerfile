@@ -1,6 +1,6 @@
 ARG platform=UNSET
 FROM mpb-minimal-$platform
-LABEL maintainer="Filipe Coelho <falktx@mod.audio>"
+LABEL maintainer="MOD Audio <https://mod.audio>"
 ENV DEBIAN_FRONTEND noninteractive
 WORKDIR /root/mod-plugin-builder
 
@@ -15,11 +15,25 @@ RUN apt-get update && apt-get upgrade -qqy && apt-get clean
 # work too.
 RUN apt-get install -qqy python3-pip python3-tornado qemu-user-static && apt-get clean
 
-# install faustpp
-RUN echo "deb https://ppa.launchpadcontent.net/kxstudio-debian/toolchain/ubuntu focal main" | tee /etc/apt/sources.list.d/kxstudio.list
-RUN echo "deb https://ppa.launchpadcontent.net/kxstudio-debian/libs/ubuntu focal main" | tee -a /etc/apt/sources.list.d/kxstudio.list
-RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys DF1BC724E4ED8A947FF0B0A1F8599E482BD84BD9
-RUN apt-get update && apt-get upgrade -qqy && apt-get install -qqy faustpp && apt-get clean
+# install faust + faustpp from the MOD mirror: the exact same packages the
+# KXStudio PPAs used to provide (faust 2.85.5, faustpp git20220912), now
+# pinned and verified instead of floating with a third-party archive
+ENV FAUST_VERSION=2.85.5+ds0-1
+ENV FAUSTPP_VERSION=0.0.0~git20220912
+RUN arch=$(dpkg --print-architecture) && mkdir /tmp/deb && cd /tmp/deb && \
+    for f in faust-common_${FAUST_VERSION}_all.deb libfaust2t64_${FAUST_VERSION}_${arch}.deb \
+             faust_${FAUST_VERSION}_${arch}.deb faustpp_${FAUSTPP_VERSION}_${arch}.deb; do \
+        wget -q https://download.mod.audio/mirror/deb/$f; done && \
+    printf '%s\n' \
+        '9a24f96fdd112dfcc856bd4b6125eb901685178cf9a80f466d5dae003c29ec4a  faust-common_2.85.5+ds0-1_all.deb' \
+        '621d7e086c7ab58f05c48ddbf121a227a85451be03a26a8573a8061b9ee63a8d  faust_2.85.5+ds0-1_amd64.deb' \
+        '13749d06fa5e4510a47aaa3f114b3d05a0639550f56a52eb9ed1d616f390c10b  faust_2.85.5+ds0-1_arm64.deb' \
+        'a612885478ba2a108c6f83fb5c1e1df898c1334d78b707f339d6ec8af5f5f4e3  faustpp_0.0.0~git20220912_amd64.deb' \
+        '600d1f19c867c5d99cfa66a7080a0540665431fb9353acabdc9523a18bf2d12a  faustpp_0.0.0~git20220912_arm64.deb' \
+        'f5302a768331bb7eaa8a91ce12439c25fb89b7d613e021e7be60535b34bf78c0  libfaust2t64_2.85.5+ds0-1_amd64.deb' \
+        'bd17dc3af7a4477303d6b565430144cc73223c6791a8dc40f9bbf25367c5e402  libfaust2t64_2.85.5+ds0-1_arm64.deb' \
+        > SHA256SUMS && sha256sum -c --ignore-missing SHA256SUMS && \
+    apt-get update && apt-get install -qqy ./*.deb && apt-get clean && cd / && rm -rf /tmp/deb
 
 # setup for this instance
 ENV PYTHONUNBUFFERED 1
