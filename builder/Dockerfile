@@ -39,11 +39,13 @@ RUN arch=$(dpkg --print-architecture) && mkdir /tmp/deb && cd /tmp/deb && \
 ENV PYTHONUNBUFFERED 1
 
 # keep a known working version of dpf around, for faster builds
-RUN git clone https://github.com/DISTRHO/DPF.git /root/dpf
+# (MOD fork of DISTRHO/DPF, the pin is kept on branch mod/pin-61d38eb6)
+RUN git clone --branch mod/pin-61d38eb6 https://github.com/mod-audio/DPF.git /root/dpf
 RUN git -C /root/dpf checkout 61d38eb638449647fb8395a35c5b8dab7e981ba7
 
 # keep a known working version of heavylib around
-RUN git clone https://github.com/Wasted-Audio/heavylib.git /root/heavylib
+# (MOD fork of Wasted-Audio/heavylib, the pin is kept on branch mod/pin-6a73fb49)
+RUN git clone --branch mod/pin-6a73fb49 https://github.com/mod-audio/heavylib.git /root/heavylib
 RUN git -C /root/heavylib checkout 6a73fb493a19da1152f42a2848835af62d8a08eb
 
 # copy builder code
