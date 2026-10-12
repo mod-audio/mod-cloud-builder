@@ -26,7 +26,7 @@ ENV PYTHONUNBUFFERED 1
 
 # copy builder code
 RUN mkdir $HOME/static $HOME/templates
-RUN git clone --depth=1 https://github.com/moddevices/mod-ui.git
+RUN git clone --depth=1 https://github.com/mod-audio/mod-ui.git
 COPY bundleinfo.py server.py $HOME/
 COPY static/*.* $HOME/static/
 COPY templates/*.html $HOME/templates/
