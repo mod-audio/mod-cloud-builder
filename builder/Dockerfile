@@ -1,6 +1,6 @@
 ARG platform=UNSET
 FROM mpb-minimal-$platform
-LABEL maintainer="Filipe Coelho <falktx@mod.audio>"
+LABEL maintainer="MOD Audio <https://mod.audio>"
 ENV DEBIAN_FRONTEND noninteractive
 WORKDIR /root/mod-plugin-builder
 
