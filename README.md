@@ -13,11 +13,11 @@ There is 1 docker "build" instance per MOD unit target (duo, duox and dwarf).
 
 The build request types implemented so far are:
 
-- FAUST (through [faust-skeleton](https://github.com/moddevices/faust-skeleton))
-- MAX gen~ (through [max-gen-skeleton](https://github.com/moddevices/max-gen-skeleton))
+- FAUST (through [faust-skeleton](https://github.com/mod-audio/faust-skeleton))
+- MAX gen~ (through [max-gen-skeleton](https://github.com/mod-audio/max-gen-skeleton))
 - Pure Data (through [hvcc](https://github.com/Wasted-Audio/hvcc/))
 
-Behind the scenes the build is done using [mod-plugin-builder](https://github.com/moddevices/mod-plugin-builder), which runs locally in each builder instance.
+Behind the scenes the build is done using [mod-plugin-builder](https://github.com/mod-audio/mod-plugin-builder), which runs locally in each builder instance.
 
 ## Browser requirements
 
