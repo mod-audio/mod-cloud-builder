@@ -7,8 +7,11 @@
 import os
 import sys
 import json
+import tarfile
 
 from base64 import encodebytes
+from datetime import datetime, timezone
+from hashlib import sha256
 from flask import Flask, Response, copy_current_request_context, redirect, request, render_template, send_from_directory
 from flask_socketio import SocketIO, emit, send
 from gevent import spawn
@@ -116,6 +119,61 @@ def symbolify(name):
     if name[0].isdigit():
         name = '_' + name
     return name
+
+# Archive of a shared build, next to the bundles (never served by this site):
+#   source/            the files as uploaded, plus the generated .mk for FAUST / MAX gen~ / Pure Data
+#   source/sources.tar.gz
+#                      what buildroot downloaded for the build (tarball, patches) and the
+#                      buildroot.json with site, version and file names, from the first target
+#   build.json         what was built when, from where, and which targets produced a bundle
+MAX_SOURCES_SIZE = 256 * 1024 * 1024
+
+def utcnow():
+    return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+def write_json(filename, data):
+    with open(filename + '.tmp', 'w') as fh:
+        fh.write(json.dumps(data, indent=2))
+    os.replace(filename + '.tmp', filename)
+
+def safe_filename(name):
+    name = os.path.basename(str(name))
+    if not name or name in ('.', '..') or name.startswith('.'):
+        return None
+    return name
+
+def archive_inputs(outdir, buildtype, package, files, generated_mk):
+    srcdir = os.path.join(outdir, 'source')
+    os.makedirs(srcdir, exist_ok=True)
+    stored = {}
+    for filename, content in files.items():
+        filename = safe_filename(filename)
+        if filename is None or not isinstance(content, str):
+            continue
+        data = content.encode('utf-8')
+        with open(os.path.join(srcdir, filename), 'wb') as fh:
+            fh.write(data)
+        stored[filename] = sha256(data).hexdigest()
+    if generated_mk is not None:
+        data = package.encode('utf-8')
+        with open(os.path.join(srcdir, generated_mk), 'wb') as fh:
+            fh.write(data)
+        stored[generated_mk] = sha256(data).hexdigest()
+    return stored
+
+def archive_sources(outdir, data):
+    filename = os.path.join(outdir, 'source', 'sources.tar.gz')
+    with open(filename, 'wb') as fh:
+        fh.write(data)
+    info = {'sha256': sha256(data).hexdigest(), 'size': len(data)}
+    try:
+        with tarfile.open(filename, 'r:gz') as tar:
+            member = tar.getmember('buildroot.json')
+            if member.isfile() and member.size < 1024 * 1024:
+                info.update(json.load(tar.extractfile(member)))
+    except (OSError, KeyError, EOFError, ValueError, tarfile.TarError) as e:
+        print(f'archive: cannot read {filename}: {e}')
+    return info
 
 def stored_bundle_info(outdir):
     # all targets are built from the same sources, the first build we can read will do
@@ -387,14 +445,44 @@ $(eval $(generic-package))
         emit('status', 'error')
         return
 
+    # FAUST, MAX gen~ and Pure Data builds get their .mk from the templates above
+    generated_mk = f"{bundle}.mk" if buildtype != 'buildroot' else None
+
     reqheaders = {
       'Content-Type': 'application/json; charset=UTF-8',
     }
+
+    record = None
 
     if persistent:
         devices = list(targets.keys())
         devices.remove(device)
         outdir = mkdtemp(prefix='', dir=BUILDER_STORAGE)
+
+        # keep what the plugin was built from, also when the build fails
+        record = {
+            'id': os.path.basename(outdir),
+            'created': utcnow(),
+            'finished': None,
+            'type': buildtype,
+            'package': bundle,
+            'name': name,
+            'brand': brand,
+            'symbol': symbol,
+            'category': category,
+            'first_target': device,
+            'targets': {},
+            'inputs': {},
+            'sources': None,
+        }
+        try:
+            record['inputs'] = archive_inputs(outdir, buildtype, package, files, generated_mk)
+        except OSError as e:
+            print(f'archive: failed to store the inputs of {outdir}: {e}')
+        try:
+            write_json(os.path.join(outdir, 'build.json'), record)
+        except OSError as e:
+            print(f'archive: failed to write {outdir}/build.json: {e}')
 
     @copy_current_request_context
     def create_build_req(targethost):
@@ -444,6 +532,23 @@ $(eval $(generic-package))
             }).encode('utf-8')
             req = urlopen(Request(f'http://{targets[device]}/', data=reqdata, headers=reqheaders, method='GET'))
             resp = req.read()
+
+            # the sources are the same for every target, take them from the first one
+            # (the builder only answers this while the websocket is still open)
+            if persistent and record['sources'] is None:
+                try:
+                    srcreq = json.dumps({'id': reqid, 'what': 'sources'}).encode('utf-8')
+                    srcresp = urlopen(Request(f'http://{targets[device]}/', data=srcreq,
+                                              headers=reqheaders, method='GET'), timeout=300)
+                    data = srcresp.read(MAX_SOURCES_SIZE + 1)
+                    if len(data) > MAX_SOURCES_SIZE:
+                        record['sources'] = {'error': 'too large'}
+                    else:
+                        record['sources'] = archive_sources(outdir, data)
+                except Exception as e:
+                    print(f'archive: failed to get the sources of {outdir}: {e}')
+                    record['sources'] = {'error': str(e)[:200]}
+
             ws.close()
 
             # store build file on client side for the first build
@@ -458,6 +563,18 @@ $(eval $(generic-package))
             # multi-target build
             with open(os.path.join(outdir, device + '.tar.gz'), 'wb') as fh:
                 fh.write(resp)
+
+            record['targets'][device] = {
+                'size': len(resp),
+                'sha256': sha256(resp).hexdigest() if resp else None,
+                'finished': utcnow(),
+            }
+            if not devices:
+                record['finished'] = utcnow()
+            try:
+                write_json(os.path.join(outdir, 'build.json'), record)
+            except OSError as e:
+                print(f'archive: failed to update {outdir}/build.json: {e}')
 
             if not devices:
                 with open(os.path.join(BUILDER_STORAGE, outdir, 'config.json'), 'w') as fh:

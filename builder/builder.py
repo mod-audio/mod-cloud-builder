@@ -5,9 +5,12 @@
 
 import os
 import json
+import shlex
+import tarfile
 
-from asyncio.subprocess import create_subprocess_shell, PIPE, STDOUT
-from tempfile import TemporaryDirectory
+from asyncio.subprocess import create_subprocess_shell, PIPE, DEVNULL, STDOUT
+from io import BytesIO
+from tempfile import TemporaryDirectory, TemporaryFile
 from tornado.ioloop import IOLoop
 from tornado.web import Application, HTTPError, RequestHandler
 from tornado.websocket import WebSocketHandler
@@ -17,6 +20,80 @@ TARGET_PLATFORM = os.getenv('MCB_BUILDER_TARGET', 'moddwarf-new')
 WORKDIR = os.getenv('WORKDIR', os.path.expanduser('~/mod-workdir'))
 
 os.environ['MPB_SKIP_PLUGIN_COPY'] = '1'
+
+# the downloads of a build that we hand back for the archive of a shared build
+MAX_SOURCES_SIZE = 256 * 1024 * 1024
+
+# buildroot variables of a package that say where its sources come from
+SOURCE_VARS = ('SITE', 'SITE_METHOD', 'VERSION', 'SOURCE', 'PATCH', 'EXTRA_DOWNLOADS', 'DL_DIR')
+
+async def read_package_vars(projname):
+    # ask buildroot itself, so variables built from other variables come out expanded
+    # (not with "make printvars", which crashes GNU make 4.3 on buildroot 2016.02)
+    pkg = projname.upper().replace('-', '_')
+    names = ' '.join([f'{pkg}_{v}' for v in SOURCE_VARS] + ['DL_DIR'])
+    rule = 'mcb-vars: ; @:$(foreach v,$(MCB_VARS),$(info $(v)=$($(v))))'
+    # same environment as the build script sets up
+    script = (f'umask 0022; PLATFORM={shlex.quote(TARGET_PLATFORM)}; source .common >/dev/null; '
+              f'export DOWNLOAD_PATH="$DOWNLOAD_DIR" TOOLCHAIN_PATH="$TOOLCHAIN_DIR"; '
+              f'cd "$BUILD_DIR/$BUILDROOT_VERSION" && '
+              f'$BR2_MAKE -s --no-print-directory --eval={shlex.quote(rule)} '
+              f'MCB_VARS={shlex.quote(names)} mcb-vars')
+    proc = await create_subprocess_shell(f'bash -c {shlex.quote(script)}', stdout=PIPE, stderr=DEVNULL)
+    stdout, _ = await proc.communicate()
+
+    values = {}
+    for line in stdout.decode('utf-8', 'replace').splitlines():
+        name, sep, value = line.partition('=')
+        if not sep:
+            continue
+        if name == 'DL_DIR':
+            values['BR2_DL_DIR'] = value.strip()
+        elif name.startswith(pkg + '_'):
+            values[name[len(pkg)+1:]] = value.strip()
+    return values
+
+def pack_sources(values, fh):
+    dldir = os.path.realpath(values.get('BR2_DL_DIR', '') or os.path.join(WORKDIR, 'download'))
+    candidates = []
+    for word in ' '.join(values.get(v, '') for v in ('SOURCE', 'PATCH', 'EXTRA_DOWNLOADS')).split():
+        name = os.path.basename(word.rstrip('/'))
+        if name and name not in ('.', '..') and name not in candidates:
+            candidates.append(name)
+
+    found = {}
+    missing = []
+    total = 0
+    for name in candidates:
+        # buildroot 2016.02 keeps downloads flat in DL_DIR, newer versions in DL_DIR/<package>
+        for folder in (values.get('DL_DIR', ''), dldir):
+            if not folder:
+                continue
+            path = os.path.realpath(os.path.join(folder, name))
+            if not path.startswith(dldir + os.sep) or not os.path.isfile(path):
+                continue
+            total += os.path.getsize(path)
+            found[name] = path
+            break
+        else:
+            missing.append(name)
+
+    info = {
+        'platform': TARGET_PLATFORM,
+        'vars': values,
+        'files': sorted(found),
+        'missing': missing,
+        'skipped_too_large': total > MAX_SOURCES_SIZE,
+    }
+
+    with tarfile.open(fileobj=fh, mode='w:gz') as tar:
+        data = json.dumps(info, indent=2).encode('utf-8')
+        member = tarfile.TarInfo('buildroot.json')
+        member.size = len(data)
+        tar.addfile(member, BytesIO(data))
+        if total <= MAX_SOURCES_SIZE:
+            for name, path in sorted(found.items()):
+                tar.add(path, arcname=f'downloads/{name}', recursive=False)
 
 class Builder(object):
     active = {}
@@ -129,6 +206,11 @@ class BuilderRequest(RequestHandler):
 
     async def get(self):
         builder = Builder.get(self.jsonrequest['id'])
+
+        if self.jsonrequest.get('what') == 'sources':
+            await self.get_sources(builder)
+            return
+
         folders = (
             os.path.join(BUILDER_PACKAGE_DIR, builder.projname),
             f"{WORKDIR}/{TARGET_PLATFORM}/target/usr/lib/lv2",
@@ -150,6 +232,23 @@ class BuilderRequest(RequestHandler):
             if stdout == b'':
                 break
             self.write(stdout)
+
+        self.finish()
+
+    async def get_sources(self, builder):
+        # what the build downloaded (tarballs, patches), plus the variables that say where
+        # it came from; must be asked for before the build websocket is closed
+        values = await read_package_vars(builder.projname)
+
+        with TemporaryFile() as fh:
+            await IOLoop.current().run_in_executor(None, pack_sources, values, fh)
+            fh.seek(0)
+            while True:
+                chunk = fh.read(65536)
+                if not chunk:
+                    break
+                self.write(chunk)
+                await self.flush()
 
         self.finish()
 

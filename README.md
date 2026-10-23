@@ -140,3 +140,30 @@ inherited by Docker containers without any per-container setup.
 Other distributions: use the equivalent multi-arch / qemu-user-static
 mechanism. The end state needed is that aarch64 ELFs can be transparently
 exec'd on the host, including inside Docker containers.
+
+## Build archive and internal catalog
+
+Every shared build (the "share" option, one build per device) keeps what it was
+built from next to the bundles in `storage/<id>/`. None of this is served by the site.
+
+- `source/`: the files as uploaded (the `.mk`, `.dsp`, `.pd`, `gen_exported.*`) and,
+  for FAUST, MAX gen~ and Pure Data, the generated `.mk`.
+- `source/sources.tar.gz`: what buildroot downloaded for the first device (the source
+  tarball of the repo at the pinned version, patches) and `buildroot.json` with the
+  site, version and file names. Skipped above 256 MB.
+- `build.json`: type, start and end time, and per device the size and sha256 of the
+  bundle (size 0 = that device failed). Written when the build starts, so failed and
+  rejected builds keep their inputs too.
+
+Builds that are not shared still store nothing.
+
+The catalog is a read-only scan of the storage, run on the server:
+
+```bash
+docker run --rm --user "$(id -u)" --entrypoint python3 \
+  -v "$PWD/storage:/mnt/storage:ro" -v "$HOME/mcb-catalog:/out" \
+  mcb-webserver /home/builder/catalog.py /mnt/storage /out
+```
+
+It writes `catalog.json` (every build), `catalog.csv` and `catalog.md` (newest build
+of each plugin, plus the failed and incomplete builds). Internal only.
