@@ -3,6 +3,17 @@
 User-facing changes to the MOD Cloud Builder (https://builder.mod.audio), newest first. Dates are
 the dates the change went live.
 
+## (date of deploy) — Pure Data: every patch is built without SIMD
+
+- Pure Data patches are now always compiled without SIMD, as hvcc recommends. Before, only
+  patches with `[expr~]` were. This fixes patches that need single-sample processing on the
+  Duo, such as filters with a `[delwrite~]`/`[vd~]` feedback loop: with SIMD the loop ran 4
+  samples long and the filter sounded wrong. It also avoids a precision problem of `[ftom~]`
+  and log-based math with SIMD.
+- Only the Duo is affected. There it costs a little CPU (about 10-20 microseconds per block for
+  a small patch, well under 1 % of the time available). The Dwarf and Duo X already built
+  without SIMD, so nothing changes for them.
+
 ## 2026-10-03 — Pure Data: hvcc 0.17.2, `[expr]` and `[expr~]` now work
 
 - The Pure Data route now compiles with **hvcc 0.17.2** (it was 0.14.0, from September 2025). The
