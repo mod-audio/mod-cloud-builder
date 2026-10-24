@@ -361,11 +361,12 @@ $(eval $(generic-package))
         midi_in = bool(msg.get('midi_in', False))
         midi_out = bool(msg.get('midi_out', False))
 
-        # hvcc implements [expr~] without SIMD only. With NEON (the Duo; the aarch64 targets
-        # already build Heavy without SIMD) its functions are empty stubs and constants do not
-        # compile, so patches using it are built with SIMD off.
-        nosimd = any(isinstance(content, str) and re_search(r'\sexpr~[\s;]', content)
-                     for content in files.values())
+        # Always build Heavy without SIMD, as hvcc upstream recommends. Only the Duo is affected
+        # (armv7 NEON); the aarch64 compilers do not define __ARM_NEON__, so Dwarf and Duo X
+        # already build without SIMD. With NEON, single-sample feedback (delwrite~/vd~) runs with
+        # a 4-sample loop, [expr~] outputs garbage and log-based objects lose precision. On the
+        # Duo, SIMD off costs about 10-20 us per 128-frame block for small patches.
+        nosimd = True
 
         files[HVCC_PATCH_NAME] = HVCC_PATCH
 
