@@ -3,7 +3,7 @@
 User-facing changes to the MOD Cloud Builder (https://builder.mod.audio), newest first. Dates are
 the dates the change went live.
 
-## (date of deploy) — Pure Data: every patch is built without SIMD
+## 2026-10-24 — Pure Data: every patch is built without SIMD
 
 - Pure Data patches are now always compiled without SIMD, as hvcc recommends. Before, only
   patches with `[expr~]` were. This fixes patches that need single-sample processing on the
